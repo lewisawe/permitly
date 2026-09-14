@@ -1,6 +1,6 @@
-import { query, mutation, internalMutation } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { caseState, stepKind, stepStatus } from "./schema";
+import { caseState, stepStatus } from "./schema";
 
 // The ordered step plan every renewal case starts with (SPEC section 6).
 const PLAN: Array<{ kind: string; detail: string }> = [
