@@ -39,15 +39,18 @@ http.route({
     const message = payload?.message;
 
     if (eventType.startsWith("message.received") && message) {
-      const inboxId = message.inbox_id;
-      const from = message.from ?? "";
-      const subject = message.subject ?? "";
-      if (inboxId && from) {
-        await ctx.runAction(internal.email.replyAck, {
-          inboxId: String(inboxId),
-          to: String(from),
-          subject: `Re: ${subject}`,
-        });
+      const text = String(message.text ?? message.preview ?? "").trim();
+      // Route the reply to the case currently awaiting the owner.
+      const c = await ctx.runQuery(internal.cases.findAwaitingCase, {});
+      if (c) {
+        if (/\bapprove\b/i.test(text)) {
+          await ctx.runMutation(internal.cases.approveFromEmail, { caseId: c._id });
+        } else {
+          await ctx.runAction(internal.runner.handleReply, {
+            caseId: c._id,
+            replyText: text,
+          });
+        }
       }
     }
 

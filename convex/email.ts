@@ -1,5 +1,5 @@
 "use node";
-import { action, internalAction } from "./_generated/server";
+import { action } from "./_generated/server";
 import { v } from "convex/values";
 
 // Direct AgentMail REST client (https://api.agentmail.to/v0), Bearer auth.
@@ -64,26 +64,6 @@ export const send = action({
       {
         method: "POST",
         body: JSON.stringify({ to, subject, text }),
-      },
-    );
-  },
-});
-
-// Internal: auto-acknowledge reply, called from the webhook handler.
-export const replyAck = internalAction({
-  args: { inboxId: v.string(), to: v.string(), subject: v.string() },
-  handler: async (_ctx, { inboxId, to, subject }) => {
-    return await agentmailFetch(
-      `/inboxes/${encodeURIComponent(inboxId)}/messages/send`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          to,
-          subject,
-          text:
-            "Permitly received your message and opened a case. " +
-            "You'll get updates here as your permit renewal progresses.",
-        }),
       },
     );
   },

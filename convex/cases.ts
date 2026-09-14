@@ -1,11 +1,27 @@
-import { query, mutation, internalQuery } from "./_generated/server";
+import { query, mutation, internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import { caseState, stepStatus } from "./schema";
 
 // Internal: load a business (for the runner's field mapping + owner email).
 export const getBusiness = internalQuery({
   args: { businessId: v.id("businesses") },
   handler: (ctx, { businessId }) => ctx.db.get(businessId),
+});
+
+// Internal: find the most recent open case awaiting the owner on a given inbox,
+// so an inbound reply can be routed to the right case. (Single-inbox demo: we
+// take the newest case in awaiting_info; a multi-inbox build would match threadId.)
+export const findAwaitingCase = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const c = await ctx.db
+      .query("cases")
+      .withIndex("by_state", (q) => q.eq("state", "awaiting_info"))
+      .order("desc")
+      .first();
+    return c;
+  },
 });
 
 // The ordered step plan every renewal case starts with (SPEC section 6).
@@ -155,5 +171,75 @@ export const setSession = mutation({
       ...(scrapeId ? { scrapeId } : {}),
       ...(liveViewUrl ? { liveViewUrl } : {}),
     });
+  },
+});
+
+// Record a proposed real-world action (the approval gate).
+export const proposeAction = internalMutation({
+  args: {
+    caseId: v.id("cases"),
+    kind: v.union(v.literal("submit_form"), v.literal("confirm_booking")),
+    payloadSummary: v.string(),
+  },
+  handler: async (ctx, { caseId, kind, payloadSummary }) => {
+    return await ctx.db.insert("actions", {
+      caseId,
+      kind,
+      payloadSummary,
+      status: "proposed",
+    });
+  },
+});
+
+// Owner approves the pending action -> schedule submission. Called from the UI
+// (board/case button) or from an "approve" email reply.
+export const approve = mutation({
+  args: { caseId: v.id("cases"), approvedBy: v.optional(v.string()) },
+  handler: async (ctx, { caseId, approvedBy }) => {
+    const c = await ctx.db.get(caseId);
+    if (!c || c.state !== "awaiting_approval") return { ok: false };
+    const action = await ctx.db
+      .query("actions")
+      .withIndex("by_case", (q) => q.eq("caseId", caseId))
+      .order("desc")
+      .first();
+    if (action) {
+      await ctx.db.patch(action._id, {
+        status: "approved",
+        approvedBy: approvedBy ?? "owner (app)",
+      });
+    }
+    await ctx.db.insert("turns", {
+      caseId,
+      threadId: c.threadId,
+      direction: "system",
+      summary: `Approved by ${approvedBy ?? "owner"}. Submitting…`,
+    });
+    await ctx.scheduler.runAfter(0, internal.runner.submit, { caseId });
+    return { ok: true };
+  },
+});
+
+// Internal variant for the email "approve" path (called from the webhook).
+export const approveFromEmail = internalMutation({
+  args: { caseId: v.id("cases") },
+  handler: async (ctx, { caseId }) => {
+    const c = await ctx.db.get(caseId);
+    if (!c || c.state !== "awaiting_approval") return;
+    const action = await ctx.db
+      .query("actions")
+      .withIndex("by_case", (q) => q.eq("caseId", caseId))
+      .order("desc")
+      .first();
+    if (action) {
+      await ctx.db.patch(action._id, { status: "approved", approvedBy: "owner (email)" });
+    }
+    await ctx.db.insert("turns", {
+      caseId,
+      threadId: c.threadId,
+      direction: "inbound",
+      summary: "Owner replied 'approve'. Submitting…",
+    });
+    await ctx.scheduler.runAfter(0, internal.runner.submit, { caseId });
   },
 });
