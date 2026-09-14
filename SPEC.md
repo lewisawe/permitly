@@ -50,6 +50,14 @@ hand every renewal cycle.
   profile to those fields, decide the next step, draft the emails, summarize the
   pending action for approval.
 
+  LLM PROVIDER DECISION (2026-09-14): use **AWS Bedrock Nova** (`amazon.nova-lite-v1:0`
+  / `amazon.nova-pro-v1:0`, ON_DEMAND) via the `simi-ops` AWS profile. No OpenAI
+  credits and no Convex paid plan needed. Verified: Converse API returns a live
+  response (Nova Lite, ~285ms). Convex runs in the cloud, so it can't read local
+  ~/.aws creds — set the simi-ops access key/secret as Convex env vars and call
+  the Bedrock REST API (SigV4-signed) from a Convex action. Provider kept
+  swappable (Bedrock now; OpenAI-via-Convex-AI-Gateway later if upgraded).
+
 Flow per turn:
 `email in (AgentMail webhook) -> Convex records turn -> OpenAI decides next step
 -> if web action needed: Convex schedules a Firecrawl /interact burst -> agent

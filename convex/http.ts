@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { internal, components } from "./_generated/api";
+import { registerStaticRoutes } from "@convex-dev/static-hosting";
 
 const http = httpRouter();
 
@@ -43,3 +44,7 @@ http.route({
 });
 
 export default http;
+
+// Serve the static Vite site at the root (fallback for non-/api routes).
+// Registered last so our own routes above take precedence.
+registerStaticRoutes(http, components.staticHosting);
