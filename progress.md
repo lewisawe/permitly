@@ -27,7 +27,7 @@ Everything is styled to the two design systems. Not yet deployed to production
   (drives Firecrawl bursts), HTTP actions (AgentMail webhook + the mock portal),
   static hosting component, reactive board. Deployments: dev `aware-puma-695`,
   prod `glad-bee-780` (prod not yet deployed to).
-- **AgentMail** — the case inbox (`sawe@agentmail.to`). Called via the **direct
+- **AgentMail** — the case inbox (the Permitly demo inbox). Called via the **direct
   v0 REST API** from Convex actions (see Problem 1). Inbound handled by a webhook
   HTTP action.
 - **Firecrawl** — scrape + `/interact` (fill/submit forms, pick booking slots) +
@@ -80,7 +80,7 @@ email) → Firecrawl submits + reads confirmation → permit renewed + owner ema
 
 2. **AgentMail key is inbox-scoped, not org-scoped.** `createInbox` returns 403
    `missing_permission` (`inbox_create` denied). **Fix:** use the existing inbox
-   `sawe@agentmail.to` (stored as `PERMITLY_INBOX_ID`). Fine for a single-inbox
+   the existing demo inbox (stored as `PERMITLY_INBOX_ID`). Fine for a single-inbox
    demo. Note: unverified AgentMail accounts can only send to the signup address
    until OTP verification — relevant if we demo a real outbound email.
 
