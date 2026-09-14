@@ -24,7 +24,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --color-background: #0f172a;
     --color-foreground: #e2e8f0;
     --color-card: #1e293b;
@@ -33,6 +33,17 @@
     --color-muted-foreground: #94a3b8;
     --color-border: #334155;
   }
+}
+
+/* Explicit dark theme via toggle (data-theme="dark") */
+[data-theme="dark"] {
+  --color-background: #0f172a;
+  --color-foreground: #e2e8f0;
+  --color-card: #1e293b;
+  --color-card-foreground: #e2e8f0;
+  --color-muted: #1e293b;
+  --color-muted-foreground: #94a3b8;
+  --color-border: #334155;
 }
 
 * {

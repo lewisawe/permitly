@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2 } from "lucide-react";
+import { Building2, Moon, Sun } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
@@ -18,8 +18,22 @@ function useHashRoute() {
   return hash;
 }
 
+function useTheme() {
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    const saved = localStorage.getItem("permitly-theme");
+    if (saved === "light" || saved === "dark") return saved;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("permitly-theme", theme);
+  }, [theme]);
+  return { theme, toggle: () => setTheme((t) => (t === "light" ? "dark" : "light")) };
+}
+
 function App() {
   const hash = useHashRoute();
+  const { theme, toggle } = useTheme();
   const board = useQuery(api.permits.board, {});
   const business = board?.business;
 
@@ -45,6 +59,14 @@ function App() {
             <Building2 size={16} aria-hidden="true" /> {business.name}
           </span>
         )}
+        <button
+          className="theme-toggle"
+          onClick={toggle}
+          aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+          title="Toggle theme"
+        >
+          {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+        </button>
       </header>
 
       <main className="app-main">

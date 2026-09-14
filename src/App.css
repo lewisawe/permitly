@@ -14,6 +14,29 @@
   color: var(--color-on-primary);
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-on-primary);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .brand-block {
   display: flex;
   align-items: baseline;
@@ -173,6 +196,7 @@
 .pill-neutral {
   background: var(--color-muted);
   color: var(--color-muted-foreground);
+  border: 1px solid var(--color-border);
 }
 
 .pill-info {
@@ -193,6 +217,24 @@
 .pill-danger {
   background: #fee2e2;
   color: #991b1b;
+}
+
+/* Keep status pills readable in dark mode (light chip + dark text stays legible). */
+[data-theme="dark"] .pill-info {
+  background: #1e3a8a;
+  color: #dbeafe;
+}
+[data-theme="dark"] .pill-warn {
+  background: #78350f;
+  color: #fde68a;
+}
+[data-theme="dark"] .pill-success {
+  background: #14532d;
+  color: #bbf7d0;
+}
+[data-theme="dark"] .pill-danger {
+  background: #7f1d1d;
+  color: #fecaca;
 }
 
 /* Buttons */
@@ -439,4 +481,10 @@
   color: #92400e;
   font-size: 15px;
   font-weight: 500;
+}
+[data-theme="dark"] .approval-bar {
+  background: #422006;
+}
+[data-theme="dark"] .approval-text {
+  color: #fde68a;
 }
