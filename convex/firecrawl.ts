@@ -65,3 +65,20 @@ export const stopInteract = action({
     return { stopped: true };
   },
 });
+
+// Run Playwright code on the session (deterministic reads/actions).
+// Returns { result, stdout }.
+export const interactCode = action({
+  args: { scrapeId: v.string(), code: v.string() },
+  handler: async (_ctx, { scrapeId, code }) => {
+    const data = await fcFetch(
+      `/scrape/${encodeURIComponent(scrapeId)}/interact`,
+      { method: "POST", body: JSON.stringify({ code, language: "node" }) },
+    );
+    return {
+      result: data?.result ?? "",
+      stdout: data?.stdout ?? "",
+      liveViewUrl: data?.liveViewUrl ?? data?.interactiveLiveViewUrl ?? "",
+    };
+  },
+});

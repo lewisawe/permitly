@@ -2,7 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal, components } from "./_generated/api";
 import { registerStaticRoutes } from "@convex-dev/static-hosting";
-import { FOOD_HANDLER_PORTAL } from "./portalHtml";
+import { FOOD_HANDLER_PORTAL, BOOKING_PORTAL } from "./portalHtml";
 
 const http = httpRouter();
 
@@ -12,6 +12,18 @@ http.route({
   method: "GET",
   handler: httpAction(async () => {
     return new Response(FOOD_HANDLER_PORTAL, {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }),
+});
+
+// Mock inspection booking page (for permits that require an inspection).
+http.route({
+  path: "/demo-portal/booking",
+  method: "GET",
+  handler: httpAction(async () => {
+    return new Response(BOOKING_PORTAL, {
       status: 200,
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });

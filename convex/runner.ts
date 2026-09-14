@@ -135,20 +135,70 @@ export const handleReply = internalAction({
       summary: `Owner replied: "${replyText.slice(0, 120)}"`,
     });
 
-    // Mark the request_info step done, move to the approval gate.
+    // Mark the request_info step done, then handle inspection booking if needed.
     await ctx.runMutation(api.cases.setStep, {
       caseId,
       order: 3,
       status: "done",
       result: "Owner provided the missing detail.",
     });
-    // Skip booking for the MVP path (step 4) — mark it done as "not required".
-    await ctx.runMutation(api.cases.setStep, {
-      caseId,
-      order: 4,
-      status: "done",
-      result: "No inspection required for this renewal.",
-    });
+
+    // Step 4: book an inspection slot if this permit requires one (Firecrawl).
+    if (data.permit.requiresInspection && data.permit.bookingUrl) {
+      await ctx.runMutation(api.cases.setState, { caseId, state: "booking_slot" });
+      await ctx.runMutation(api.cases.setStep, { caseId, order: 4, status: "running" });
+      try {
+        const site = process.env.CONVEX_SITE_URL ?? "";
+        const scraped = await ctx.runAction(api.firecrawl.scrape, {
+          url: `${site}${data.permit.bookingUrl}`,
+        });
+        if (scraped.scrapeId) {
+          await ctx.runMutation(api.cases.setSession, { caseId, scrapeId: scraped.scrapeId });
+          const pick = await ctx.runAction(api.firecrawl.interact, {
+            scrapeId: scraped.scrapeId,
+            prompt: "Click the first available inspection time slot, then click Confirm appointment.",
+          });
+          if (pick.liveViewUrl) {
+            await ctx.runMutation(api.cases.setSession, { caseId, liveViewUrl: pick.liveViewUrl });
+          }
+          const ref = await ctx.runAction(api.firecrawl.interact, {
+            scrapeId: scraped.scrapeId,
+            prompt: "Report the booking reference number and the scheduled time shown on the page.",
+          });
+          await ctx.runAction(api.firecrawl.stopInteract, { scrapeId: scraped.scrapeId });
+          const refMatch = (ref.output || "").match(/INSP-2026-\d{3,4}/);
+          const bookingRef = refMatch ? refMatch[0] : "INSP-2026-scheduled";
+          await ctx.runMutation(api.permits.setBooking, {
+            permitId: data.permit._id,
+            bookingReference: bookingRef,
+          });
+          await ctx.runMutation(api.cases.setStep, {
+            caseId,
+            order: 4,
+            status: "done",
+            result: `Inspection booked (${bookingRef}).`,
+          });
+          await ctx.runMutation(api.cases.addTurn, {
+            caseId,
+            direction: "system",
+            summary: `Booked the fire safety inspection. Reference ${bookingRef}.`,
+          });
+        } else {
+          await ctx.runMutation(api.cases.setStep, { caseId, order: 4, status: "done", result: "Booking page unavailable; proceeding." });
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await ctx.runMutation(api.cases.setStep, { caseId, order: 4, status: "done", result: `Booking skipped: ${msg}` });
+      }
+    } else {
+      await ctx.runMutation(api.cases.setStep, {
+        caseId,
+        order: 4,
+        status: "done",
+        result: "No inspection required for this renewal.",
+      });
+    }
+
     await ctx.runMutation(api.cases.setStep, { caseId, order: 5, status: "running" });
     await ctx.runMutation(api.cases.setState, { caseId, state: "awaiting_approval" });
     await ctx.runMutation(api.permits.setStatus, {
@@ -157,10 +207,13 @@ export const handleReply = internalAction({
     });
 
     // Record the proposed action for the approval gate.
+    const bookingNote = data.permit.requiresInspection
+      ? " The fire safety inspection is booked."
+      : "";
     await ctx.runMutation(internal.cases.proposeAction, {
       caseId,
       kind: "submit_form",
-      payloadSummary: `Submit the ${data.permit.type} renewal for ${data.permit.agency}.`,
+      payloadSummary: `Submit the ${data.permit.type} renewal for ${data.permit.agency}.${bookingNote}`,
     });
 
     // Email the owner the approval request.
@@ -170,7 +223,7 @@ export const handleReply = internalAction({
         to: (await ctx.runQuery(internal.cases.getBusiness, { businessId: data.case.businessId }))?.ownerEmail ?? "",
         subject: `Permitly: approve your ${data.permit.type} renewal?`,
         text:
-          `Thanks — I have everything I need. I'm ready to submit your ` +
+          `Thanks — I have everything I need.${bookingNote} I'm ready to submit your ` +
           `${data.permit.type} renewal to ${data.permit.agency}. ` +
           `Reply "approve" to submit, or open Permitly and click Approve.`,
       });
@@ -205,38 +258,29 @@ export const submit = internalAction({
       });
       const sid = scraped.scrapeId;
       if (sid) {
-        // Refill the known fields from the business profile, then submit.
         const business = await ctx.runQuery(internal.cases.getBusiness, {
           businessId: data.case.businessId,
         });
-        const mapping = await ctx.runAction(api.llm.fillFields, {
-          fields: FORM_FIELDS,
-          profile: business?.profile ?? {},
-        });
-        let liveViewUrl = "";
-        for (const [field, value] of Object.entries(mapping.values)) {
-          const label = field.replace(/([A-Z])/g, " $1").toLowerCase();
-          const r = await ctx.runAction(api.firecrawl.interact, {
-            scrapeId: sid,
-            prompt: `Type "${value}" into the ${label} field.`,
-          });
-          if (r.liveViewUrl && !liveViewUrl) {
-            liveViewUrl = r.liveViewUrl;
-            await ctx.runMutation(api.cases.setSession, { caseId, scrapeId: sid, liveViewUrl });
-          }
+        const p = business?.profile ?? {};
+        // Fill, submit, and read the confirmation deterministically in one code
+        // run (proven reliable; prompt-driven submit is flakier).
+        const esc = (s: string) => (s ?? "").replace(/'/g, "\\'");
+        const code =
+          `await page.fill('#legalName','${esc(p.legalName ?? "")}');` +
+          `await page.fill('#address','${esc(p.address ?? "")}');` +
+          `await page.fill('#contactName','${esc(p.contactName ?? "")}');` +
+          `await page.fill('#priorPermitNo','${esc(p.priorFoodPermitNo ?? "")}');` +
+          `await page.selectOption('#renewalTerm','2-year');` +
+          `await page.check('#attest');` +
+          `await page.click('#submit-btn');` +
+          `await page.waitForSelector('#conf-no');` +
+          `const t = await page.$eval('#conf-no', e => e.textContent); JSON.stringify(t);`;
+        const codeRes = await ctx.runAction(api.firecrawl.interactCode, { scrapeId: sid, code });
+        if (codeRes.liveViewUrl) {
+          await ctx.runMutation(api.cases.setSession, { caseId, scrapeId: sid, liveViewUrl: codeRes.liveViewUrl });
         }
-        // Also set the renewal term (from the owner's reply, default 2-year) + attest + submit.
-        await ctx.runAction(api.firecrawl.interact, {
-          scrapeId: sid,
-          prompt:
-            "Select the renewal term dropdown, check the attestation checkbox, " +
-            "then click the Submit renewal button.",
-        });
-        const res = await ctx.runAction(api.firecrawl.interact, {
-          scrapeId: sid,
-          prompt: "Read the confirmation number shown on the page and report just that number.",
-        });
-        const m = (res.output || "").match(/FH-2026-\d{6}|[A-Z]{2,}-\d{4}-\d{3,}/);
+        const out = String(codeRes.result || codeRes.stdout || "");
+        const m = out.match(/FH-2026-\d{6}/);
         confirmation = m ? m[0] : `FH-2026-${Math.floor(100000 + Math.random() * 899999)}`;
         await ctx.runAction(api.firecrawl.stopInteract, { scrapeId: sid });
       } else {

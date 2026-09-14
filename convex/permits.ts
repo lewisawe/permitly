@@ -62,6 +62,14 @@ export const setStatus = mutation({
   },
 });
 
+// Store the inspection booking reference on a permit.
+export const setBooking = mutation({
+  args: { permitId: v.id("permits"), bookingReference: v.string() },
+  handler: async (ctx, { permitId, bookingReference }) => {
+    await ctx.db.patch(permitId, { bookingReference });
+  },
+});
+
 // Start a renewal from the board: open a case for this permit, then kick off
 // the runner (scrape -> fill -> ask/approve) against the demo portal.
 export const startRenewal = mutation({

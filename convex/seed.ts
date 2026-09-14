@@ -1,4 +1,5 @@
 import { mutation } from "./_generated/server";
+import { api } from "./_generated/api";
 
 const DAY = 24 * 60 * 60 * 1000;
 // Seed a fictional demo business with a spread of permits, so the board is
@@ -38,6 +39,8 @@ export const demo = mutation({
         | "submitted"
         | "renewed"
         | "failed";
+      requiresInspection?: boolean;
+      bookingUrl?: string;
     }> = [
       {
         type: "Food Handler Permit",
@@ -45,6 +48,8 @@ export const demo = mutation({
         portalUrl: "/demo-portal/food-handler",
         deadline: now + 3 * DAY, // due soon (red)
         status: "tracked",
+        requiresInspection: true,
+        bookingUrl: "/demo-portal/booking",
       },
       {
         type: "Business License",
@@ -77,7 +82,19 @@ export const demo = mutation({
   },
 });
 
-// Clear all in-flight case data and reset permits to their pre-renewal status,
+// Full wipe (businesses + permits + case data) then re-seed fresh. For demo
+// resets after schema changes.
+export const reseed = mutation({
+  args: {},
+  handler: async (ctx): Promise<{ reseeded: boolean }> => {
+    for (const t of ["actions", "turns", "steps", "cases", "permits", "businesses"] as const) {
+      const rows = await ctx.db.query(t).collect();
+      for (const r of rows) await ctx.db.delete(r._id);
+    }
+    await ctx.runMutation(api.seed.demo, {});
+    return { reseeded: true };
+  },
+});
 // so the demo can be re-run from a clean board. Keeps businesses + permits.
 export const resetCases = mutation({
   args: {},

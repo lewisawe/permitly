@@ -64,6 +64,10 @@ export default defineSchema({
     deadline: v.number(), // ms since epoch
     status: permitStatus,
     lastConfirmation: v.optional(v.string()),
+    // If true, the renewal also requires booking an inspection appointment.
+    requiresInspection: v.optional(v.boolean()),
+    bookingUrl: v.optional(v.string()),
+    bookingReference: v.optional(v.string()),
   })
     .index("by_business", ["businessId"])
     .index("by_deadline", ["deadline"])
