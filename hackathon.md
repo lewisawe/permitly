@@ -55,3 +55,17 @@ deadline colors) and a DEMO-labeled "Springfield City Permits" mock renewal form
 for the agent to act on. Added Convex static hosting for the eventual
 convex.site URL (`convex/http.ts`, `convex/email.ts`, `convex/firecrawl.ts`,
 `src/App.tsx`, `public/demo-portal/food-handler.html`).
+
+### 2026-09-14 - working tree
+The core agent loop runs end to end. Starting a renewal from the board opens a
+case and schedules a runner that: opens the mock Springfield City Permits portal
+(Firecrawl scrape, served publicly from convex.site via an HTTP action), maps the
+business profile onto the form fields with AWS Bedrock Nova, fills each field on
+the live page with Firecrawl `/interact` (capturing the interactive live-view URL
+that the case UI embeds), detects the one field the profile lacks (renewal term),
+and emails the owner for it through AgentMail — then stops at the human step with
+the permit marked "awaiting info". Convex features added: scheduled functions
+(runner bursts), HTTP actions (portal + webhook). AI models: amazon.nova-lite-v1:0
+via a self-signed SigV4 Bedrock Converse call (`convex/runner.ts`, `convex/llm.ts`,
+`convex/firecrawl.ts`, `convex/email.ts`, `convex/http.ts`). Verified live: all
+four steps completed, four activity turns logged, live-view captured.
