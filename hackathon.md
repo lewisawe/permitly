@@ -12,7 +12,7 @@
 - **Auth:** none
 - **AI models:** amazon.nova-lite-v1:0 (AWS Bedrock, via Converse)
 - **Started:** 2026-09-14T19:05:24Z
-- **Last updated:** 2026-09-14T20:35:00Z
+- **Last updated:** 2026-09-14T21:55:00Z
 
 ## Log
 
@@ -69,3 +69,17 @@ the permit marked "awaiting info". Convex features added: scheduled functions
 via a self-signed SigV4 Bedrock Converse call (`convex/runner.ts`, `convex/llm.ts`,
 `convex/firecrawl.ts`, `convex/email.ts`, `convex/http.ts`). Verified live: all
 four steps completed, four activity turns logged, live-view captured.
+
+### 2026-09-14 - working tree
+Completed the full renewal loop and polished it. An owner reply now advances the
+case through the human-approval gate to submission: the webhook routes an
+"approve" reply or a missing-field answer, the agent books a fire-safety
+inspection slot on a second mock portal page when the permit requires one
+(Firecrawl picks a slot and captures the booking reference), and on approval the
+agent submits the renewal and reads the confirmation number straight from the
+page via a deterministic Firecrawl code run, then marks the permit renewed and
+emails the owner. Added an in-app "Approve & submit" button on the case view.
+Verified end to end on the dev deployment: inspection booked, renewal submitted,
+a fresh page-read confirmation recorded, permit renewed
+(`convex/runner.ts`, `convex/http.ts`, `convex/portalHtml.ts`, `convex/firecrawl.ts`,
+`src/components/CaseView.tsx`).
