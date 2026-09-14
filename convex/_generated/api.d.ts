@@ -15,6 +15,8 @@ import type * as health from "../health.js";
 import type * as http from "../http.js";
 import type * as llm from "../llm.js";
 import type * as permits from "../permits.js";
+import type * as portalHtml from "../portalHtml.js";
+import type * as runner from "../runner.js";
 import type * as seed from "../seed.js";
 
 import type {
@@ -31,6 +33,8 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   llm: typeof llm;
   permits: typeof permits;
+  portalHtml: typeof portalHtml;
+  runner: typeof runner;
   seed: typeof seed;
 }>;
 

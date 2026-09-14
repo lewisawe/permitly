@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { permitStatus } from "./schema";
 
@@ -62,10 +62,24 @@ export const setStatus = mutation({
   },
 });
 
-// Start a renewal from the board: open a case for this permit.
+// Start a renewal from the board: open a case for this permit, then kick off
+// the runner (scrape -> fill -> ask/approve) against the demo portal.
 export const startRenewal = mutation({
   args: { permitId: v.id("permits") },
   handler: async (ctx, { permitId }): Promise<Id<"cases">> => {
-    return await ctx.runMutation(api.cases.open, { permitId });
+    const caseId: Id<"cases"> = await ctx.runMutation(api.cases.open, {
+      permitId,
+      inboxId: process.env.PERMITLY_INBOX_ID,
+    });
+    const permit = await ctx.db.get(permitId);
+    if (permit) {
+      // Build the public portal URL: SITE_URL + the permit's portal path.
+      const site = process.env.CONVEX_SITE_URL ?? "";
+      const portalUrl = permit.portalUrl.startsWith("http")
+        ? permit.portalUrl
+        : `${site}${permit.portalUrl}`;
+      await ctx.scheduler.runAfter(0, internal.runner.run, { caseId, portalUrl });
+    }
+    return caseId;
   },
 });

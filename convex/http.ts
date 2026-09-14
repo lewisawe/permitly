@@ -2,8 +2,21 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal, components } from "./_generated/api";
 import { registerStaticRoutes } from "@convex-dev/static-hosting";
+import { FOOD_HANDLER_PORTAL } from "./portalHtml";
 
 const http = httpRouter();
+
+// Mock permit portal served publicly from convex.site so Firecrawl can reach it.
+http.route({
+  path: "/demo-portal/food-handler",
+  method: "GET",
+  handler: httpAction(async () => {
+    return new Response(FOOD_HANDLER_PORTAL, {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }),
+});
 
 // AgentMail delivers inbound email + delivery events here.
 // Minimal first cut: parse the event, and on an inbound message schedule an

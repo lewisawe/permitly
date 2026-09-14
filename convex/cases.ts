@@ -1,6 +1,12 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { caseState, stepStatus } from "./schema";
+
+// Internal: load a business (for the runner's field mapping + owner email).
+export const getBusiness = internalQuery({
+  args: { businessId: v.id("businesses") },
+  handler: (ctx, { businessId }) => ctx.db.get(businessId),
+});
 
 // The ordered step plan every renewal case starts with (SPEC section 6).
 const PLAN: Array<{ kind: string; detail: string }> = [
