@@ -420,3 +420,23 @@
   border-radius: 8px;
   font-size: 14px;
 }
+
+/* Approval bar */
+.approval-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #fef3c7;
+  border: 1px solid var(--color-accent);
+  border-radius: 12px;
+}
+.approval-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #92400e;
+  font-size: 15px;
+  font-weight: 500;
+}

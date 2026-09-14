@@ -1,4 +1,4 @@
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { STATUS_LABEL, STATUS_TONE, type PermitStatus } from "../lib/status";
@@ -11,6 +11,7 @@ import {
   Mail,
   Bot,
   Info,
+  ShieldCheck,
 } from "lucide-react";
 
 const STEP_ICON: Record<string, React.ReactNode> = {
@@ -34,6 +35,7 @@ export function CaseView({
   onBack: () => void;
 }) {
   const data = useQuery(api.cases.get, { caseId });
+  const approve = useMutation(api.cases.approve);
 
   if (data === undefined) {
     return (
@@ -53,7 +55,11 @@ export function CaseView({
     );
   }
 
-  const { case: c, permit, steps, turns } = data;
+  const { case: c, permit, steps, turns, actions } = data;
+  const pendingAction =
+    c.state === "awaiting_approval"
+      ? actions.find((a) => a.status === "proposed")
+      : undefined;
 
   return (
     <div className="case-view">
@@ -72,6 +78,21 @@ export function CaseView({
           </span>
         )}
       </div>
+
+      {pendingAction && (
+        <div className="approval-bar" role="region" aria-label="Approval required">
+          <div className="approval-text">
+            <ShieldCheck size={18} aria-hidden="true" />
+            <span>{pendingAction.payloadSummary} Approve to submit.</span>
+          </div>
+          <button
+            className="btn btn-accent"
+            onClick={() => void approve({ caseId, approvedBy: "owner (app)" })}
+          >
+            Approve &amp; submit
+          </button>
+        </div>
+      )}
 
       <div className="case-grid">
         {/* Step plan */}
