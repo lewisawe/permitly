@@ -13,6 +13,7 @@ import type * as email from "../email.js";
 import type * as firecrawl from "../firecrawl.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
+import type * as llm from "../llm.js";
 import type * as permits from "../permits.js";
 import type * as seed from "../seed.js";
 
@@ -28,6 +29,7 @@ declare const fullApi: ApiFromModules<{
   firecrawl: typeof firecrawl;
   health: typeof health;
   http: typeof http;
+  llm: typeof llm;
   permits: typeof permits;
   seed: typeof seed;
 }>;
