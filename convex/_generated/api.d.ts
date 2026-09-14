@@ -9,6 +9,7 @@
  */
 
 import type * as email from "../email.js";
+import type * as firecrawl from "../firecrawl.js";
 import type * as health from "../health.js";
 import type * as http from "../http.js";
 import type * as permits from "../permits.js";
@@ -22,6 +23,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   email: typeof email;
+  firecrawl: typeof firecrawl;
   health: typeof health;
   http: typeof http;
   permits: typeof permits;
