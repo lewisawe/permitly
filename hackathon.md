@@ -8,11 +8,11 @@
 - **Frontend:** Convex static hosting
 - **Convex deployment:** not deployed
 - **Components:** none
-- **Convex features:** schema, indexes, queries
+- **Convex features:** schema, indexes, queries, mutations, actions, HTTP actions, scheduled functions, static hosting
 - **Auth:** none
-- **AI models:** none
+- **AI models:** amazon.nova-lite-v1:0 (AWS Bedrock, via Converse)
 - **Started:** 2026-09-14T19:05:24Z
-- **Last updated:** 2026-09-14T19:58:00Z
+- **Last updated:** 2026-09-14T20:35:00Z
 
 ## Log
 
@@ -42,3 +42,16 @@ Wired the React client with `ConvexProvider` and applied the design tokens.
 Convex features so far: schema, indexes, queries (`convex/schema.ts`,
 `convex/health.ts`, `src/main.tsx`, `src/App.tsx`). Provisioned a cloud dev
 deployment and verified the `health` query runs on it. Not yet deployed publicly.
+
+### 2026-09-14 - working tree
+Proved all three sponsor integrations from Convex actions. AgentMail: reached the
+account and listed the case inbox (direct v0 REST, after the @agentmail/convex
+component's functions failed to resolve at runtime). Firecrawl: scraped a public
+form and used `/interact` to fill a field, which returned an interactive
+live-view URL for the demo. AWS Bedrock Nova Lite answered a Converse call and is
+the chosen LLM (no OpenAI credits, no Convex paid plan). Built the compliance
+board UI (verified with Playwright: 4 permits render with correct KPIs and
+deadline colors) and a DEMO-labeled "Springfield City Permits" mock renewal form
+for the agent to act on. Added Convex static hosting for the eventual
+convex.site URL (`convex/http.ts`, `convex/email.ts`, `convex/firecrawl.ts`,
+`src/App.tsx`, `public/demo-portal/food-handler.html`).
