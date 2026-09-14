@@ -1,7 +1,6 @@
 import { mutation } from "./_generated/server";
 
 const DAY = 24 * 60 * 60 * 1000;
-
 // Seed a fictional demo business with a spread of permits, so the board is
 // populated for the no-account demo path (DESIGN.md). Idempotent-ish: it skips
 // if a demo business already exists.
@@ -75,5 +74,30 @@ export const demo = mutation({
     }
 
     return { businessId, seeded: true, count: permits.length };
+  },
+});
+
+// Clear all in-flight case data and reset permits to their pre-renewal status,
+// so the demo can be re-run from a clean board. Keeps businesses + permits.
+export const resetCases = mutation({
+  args: {},
+  handler: async (ctx) => {
+    for (const t of ["actions", "turns", "steps", "cases"] as const) {
+      const rows = await ctx.db.query(t).collect();
+      for (const r of rows) await ctx.db.delete(r._id);
+    }
+    // Reset permits that were mid-renewal back to tracked (leave "failed"/"renewed").
+    const permits = await ctx.db.query("permits").collect();
+    for (const p of permits) {
+      if (
+        p.status === "in_progress" ||
+        p.status === "awaiting_info" ||
+        p.status === "awaiting_approval" ||
+        p.status === "submitted"
+      ) {
+        await ctx.db.patch(p._id, { status: "tracked" });
+      }
+    }
+    return { cleared: true };
   },
 });

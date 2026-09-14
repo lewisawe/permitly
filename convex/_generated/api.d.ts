@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as cases from "../cases.js";
 import type * as email from "../email.js";
 import type * as firecrawl from "../firecrawl.js";
 import type * as health from "../health.js";
@@ -22,6 +23,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  cases: typeof cases;
   email: typeof email;
   firecrawl: typeof firecrawl;
   health: typeof health;

@@ -1,5 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { api } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { permitStatus } from "./schema";
 
 // Board data: all permits for a business, with their active case (if any).
@@ -57,5 +59,13 @@ export const setStatus = mutation({
       status,
       ...(lastConfirmation ? { lastConfirmation } : {}),
     });
+  },
+});
+
+// Start a renewal from the board: open a case for this permit.
+export const startRenewal = mutation({
+  args: { permitId: v.id("permits") },
+  handler: async (ctx, { permitId }): Promise<Id<"cases">> => {
+    return await ctx.runMutation(api.cases.open, { permitId });
   },
 });
