@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { STATUS_LABEL, STATUS_TONE, type PermitStatus } from "../lib/status";
+import { STATUS_LABEL, STATUS_TONE, deadlineInfo, type PermitStatus } from "../lib/status";
 import {
   ArrowLeft,
   Check,
@@ -90,7 +90,17 @@ export function CaseView({
       <div className="case-head">
         <div>
           <h2>{permit?.type ?? "Renewal"}</h2>
-          <p className="cell-muted">{permit?.agency}</p>
+          <div className="case-head-meta">
+            <span>{permit?.agency}</span>
+            {permit && (
+              <>
+                <span className="case-head-dot" aria-hidden="true">·</span>
+                <span className={`urgency-${deadlineInfo(permit.deadline).urgency}`}>
+                  {deadlineInfo(permit.deadline).label}
+                </span>
+              </>
+            )}
+          </div>
         </div>
         {permit && (
           <span className={`pill pill-${STATUS_TONE[permit.status as PermitStatus]}`}>
