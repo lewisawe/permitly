@@ -89,7 +89,6 @@ export default defineSchema({
     threadId: v.optional(v.string()), // AgentMail thread
     inboxId: v.optional(v.string()),
     state: caseState,
-    currentStepId: v.optional(v.id("steps")),
     liveViewUrl: v.optional(v.string()), // Firecrawl interactive live view
     scrapeId: v.optional(v.string()), // Firecrawl session
     lastError: v.optional(v.string()),

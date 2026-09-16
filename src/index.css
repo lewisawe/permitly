@@ -16,10 +16,8 @@
   --radius-card: 12px;
   --radius-link: 8px;
   --radius-pill: 9999px;
-  --radius-sm: 4px;
 
   --shadow-hard: 5px 5px 0px 0px #000;
-  --shadow-float: rgba(0, 0, 0, 0.6) 0px 3px 4px 0px;
 
   color-scheme: light;
 }

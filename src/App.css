@@ -64,18 +64,8 @@
   margin: 0 auto;
 }
 
-.status-line {
-  display: inline-flex;
-  padding: 8px 14px;
-  border: 1px solid var(--color-carbon);
-  border-radius: var(--radius-link);
-  background: var(--color-paper);
-  color: var(--color-steel);
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
-
 /* KPIs — stat-banner feel: hard offset shadow, orange mono numerals */
+
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -570,20 +560,6 @@
   font-size: 13px;
   color: var(--color-steel);
 }
-.live-view-placeholder {
-  padding: 64px 20px;
-  min-height: 460px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--color-steel);
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px dashed var(--color-ash);
-  border-radius: var(--radius-link);
-  font-size: 14px;
-}
-
 /* State-aware live view panel (shown when no active browser frame). */
 .live-status {
   min-height: 460px;

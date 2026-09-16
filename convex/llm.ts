@@ -97,15 +97,6 @@ async function bedrockConverse(messagesText: string, system?: string) {
   return json?.output?.message?.content?.[0]?.text ?? "";
 }
 
-// Public test action: prove Bedrock works from the deployment.
-export const ping = action({
-  args: { prompt: v.optional(v.string()) },
-  handler: async (_ctx, { prompt }) => {
-    const out = await bedrockConverse(prompt ?? "Reply with exactly: PERMITLY_OK");
-    return { text: out };
-  },
-});
-
 // Ask the model to map a business profile onto a set of form field names.
 // Returns a JSON object { fieldName: value } plus a list of missing fields.
 export const fillFields = action({

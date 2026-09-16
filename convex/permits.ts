@@ -59,20 +59,6 @@ export const board = query({
   },
 });
 
-// Add a permit to track.
-export const add = mutation({
-  args: {
-    businessId: v.id("businesses"),
-    type: v.string(),
-    agency: v.string(),
-    portalUrl: v.string(),
-    deadline: v.number(),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db.insert("permits", { ...args, status: "tracked" });
-  },
-});
-
 // Update a permit's status (used by the case engine).
 export const setStatus = mutation({
   args: {

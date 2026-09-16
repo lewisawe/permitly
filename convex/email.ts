@@ -28,28 +28,6 @@ async function agentmailFetch(path: string, init?: RequestInit) {
   return bodyText ? JSON.parse(bodyText) : {};
 }
 
-// Create an inbox. Returns { inbox_id, ... }.
-export const createInbox = action({
-  args: { username: v.optional(v.string()), displayName: v.optional(v.string()) },
-  handler: async (_ctx, { username, displayName }) => {
-    const body: Record<string, unknown> = {};
-    if (username) body.username = username;
-    if (displayName) body.display_name = displayName;
-    return await agentmailFetch("/inboxes", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  },
-});
-
-// List inboxes.
-export const listInboxes = action({
-  args: {},
-  handler: async () => {
-    return await agentmailFetch("/inboxes");
-  },
-});
-
 // Send a message from an inbox.
 export const send = action({
   args: {
