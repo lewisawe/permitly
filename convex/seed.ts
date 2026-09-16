@@ -34,6 +34,7 @@ export const demo = mutation({
       type: string;
       agency: string;
       portalUrl: string;
+      portalSlug: string;
       deadline: number;
       status:
         | "tracked"
@@ -50,6 +51,7 @@ export const demo = mutation({
         type: "Food Handler Permit",
         agency: "Springfield City Permits",
         portalUrl: "/demo-portal/login",
+        portalSlug: "food-handler",
         deadline: now + 3 * DAY, // due soon (red)
         status: "tracked",
         requiresInspection: true,
@@ -58,21 +60,24 @@ export const demo = mutation({
       {
         type: "Business License",
         agency: "Springfield City Permits",
-        portalUrl: "/demo-portal/business-license",
+        portalUrl: "/demo-portal/login",
+        portalSlug: "business-license",
         deadline: now + 12 * DAY, // amber
         status: "tracked",
       },
       {
         type: "Fire Safety Inspection",
         agency: "Springfield Fire Dept",
-        portalUrl: "/demo-portal/fire-safety",
+        portalUrl: "/demo-portal/login",
+        portalSlug: "fire-safety",
         deadline: now + 45 * DAY, // neutral
         status: "tracked",
       },
       {
         type: "Sign Permit",
         agency: "Springfield City Permits",
-        portalUrl: "/demo-portal/sign",
+        portalUrl: "/demo-portal/login",
+        portalSlug: "sign",
         deadline: now - 2 * DAY, // overdue (red)
         status: "failed",
       },

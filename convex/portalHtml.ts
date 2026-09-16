@@ -48,9 +48,9 @@ export const FOOD_HANDLER_PORTAL = `<!doctype html>
 <div class="demo-banner">DEMO PORTAL — not a real government agency. For Permitly demonstration only.</div>
 <div class="gov-header"><span class="mark"></span><div><h1>Springfield City Permits</h1><p>office of business licensing · renewals</p></div></div>
 <div class="wrap"><div class="card">
-  <span class="badge">Form FH-1 · renewal</span>
-  <h2 style="margin-top:10px">Food Handler Permit — Renewal</h2>
-  <p class="sub">Complete all fields to renew your establishment's food handler permit.</p>
+  <span class="badge" id="form-badge">Form · renewal</span>
+  <h2 style="margin-top:10px" id="form-title">Permit Renewal</h2>
+  <p class="sub" id="form-sub">Complete all fields to renew your permit.</p>
   <form id="renewal-form" onsubmit="return submitForm(event)">
     <label for="legalName">Business legal name</label>
     <input type="text" id="legalName" name="legalName" required />
@@ -63,7 +63,7 @@ export const FOOD_HANDLER_PORTAL = `<!doctype html>
     <label for="renewalTerm">Renewal term</label>
     <select id="renewalTerm" name="renewalTerm"><option value="1-year">1 year</option><option value="2-year">2 years</option></select>
     <div class="check-row"><input type="checkbox" id="attest" name="attest" required />
-      <label for="attest">I attest that the information provided is accurate and the establishment complies with the Springfield Food Safety Code.</label></div>
+      <label for="attest" id="attest-label">I attest that the information provided is accurate and the establishment complies with the Springfield Municipal Code.</label></div>
     <button type="submit" id="submit-btn">Continue to review</button>
   </form>
   <div class="confirmation" id="confirmation">
@@ -73,12 +73,27 @@ export const FOOD_HANDLER_PORTAL = `<!doctype html>
   </div>
 </div></div>
 <script>
+  // Adapt the form to the permit type passed as ?permit=<slug>.
+  var PERMITS = {
+    "food-handler": { title: "Food Handler Permit — Renewal", badge: "Form FH-1 · renewal", sub: "Complete all fields to renew your establishment's food handler permit.", attest: "I attest that the establishment complies with the Springfield Food Safety Code." },
+    "business-license": { title: "Business License — Renewal", badge: "Form BL-1 · renewal", sub: "Complete all fields to renew your business license.", attest: "I attest that the business information provided is accurate and current." },
+    "fire-safety": { title: "Fire Safety Inspection — Renewal", badge: "Form FS-1 · renewal", sub: "Complete all fields to renew your fire safety certificate.", attest: "I attest that the premises comply with the Springfield Fire Code." },
+    "sign": { title: "Sign Permit — Renewal", badge: "Form SP-1 · renewal", sub: "Complete all fields to renew your sign permit.", attest: "I attest that all signage complies with the Springfield Sign Ordinance." },
+  };
+  var slug = new URLSearchParams(location.search).get("permit") || "food-handler";
+  var cfg = PERMITS[slug] || PERMITS["food-handler"];
+  document.getElementById("form-title").textContent = cfg.title;
+  document.getElementById("form-badge").textContent = cfg.badge;
+  document.getElementById("form-sub").textContent = cfg.sub;
+  document.getElementById("attest-label").textContent = cfg.attest;
+  document.title = cfg.title + " — DEMO";
+
   function submitForm(e) {
     e.preventDefault();
-    // Multi-step wizard: forward entered values to the review page for a final
-    // confirm (a real portal rarely submits in one click).
+    // Multi-step wizard: forward entered values + permit type to the review page.
     var f = document.getElementById("renewal-form");
     var q = new URLSearchParams({
+      permit: slug,
       legalName: f.legalName.value,
       address: f.address.value,
       contactName: f.contactName.value,
@@ -248,9 +263,10 @@ export const DASHBOARD_PORTAL = `<!doctype html><html lang="en"><head>${PORTAL_H
   <table class="permits">
     <thead><tr><th>Permit</th><th>Status</th><th>Action</th></tr></thead>
     <tbody>
-      <tr><td>Food Handler Permit</td><td>Renewal due</td><td><a class="renew-link" href="/demo-portal/food-handler">Renew</a></td></tr>
-      <tr><td>Business License</td><td>Active</td><td><a class="renew-link" href="/demo-portal/food-handler">Renew</a></td></tr>
-      <tr><td>Sign Permit</td><td>Expired</td><td><a class="renew-link" href="/demo-portal/food-handler">Renew</a></td></tr>
+      <tr><td>Food Handler Permit</td><td>Renewal due</td><td><a class="renew-link" href="/demo-portal/food-handler?permit=food-handler">Renew</a></td></tr>
+      <tr><td>Business License</td><td>Active</td><td><a class="renew-link" href="/demo-portal/food-handler?permit=business-license">Renew</a></td></tr>
+      <tr><td>Fire Safety Inspection</td><td>Due soon</td><td><a class="renew-link" href="/demo-portal/food-handler?permit=fire-safety">Renew</a></td></tr>
+      <tr><td>Sign Permit</td><td>Expired</td><td><a class="renew-link" href="/demo-portal/food-handler?permit=sign">Renew</a></td></tr>
     </tbody>
   </table>
 </div></div>
@@ -274,11 +290,16 @@ export const REVIEW_PORTAL = `<!doctype html><html lang="en"><head>${PORTAL_HEAD
 </div></div>
 <script>
   var q = new URLSearchParams(location.search);
-  var fields = [["Business legal name","legalName"],["Business address","address"],["Contact name","contactName"],["Prior permit number","priorPermitNo"],["Renewal term","renewalTerm"]];
-  var html = fields.map(function(f){ return '<div class="review-row"><span class="k">'+f[0]+'</span><span class="v">'+(q.get(f[1])||'—')+'</span></div>'; }).join("");
+  var slug = q.get("permit") || "food-handler";
+  var PREFIX = { "food-handler": "FH", "business-license": "BL", "fire-safety": "FS", "sign": "SP" };
+  var fields = [["Permit","permitLabel"],["Business legal name","legalName"],["Business address","address"],["Contact name","contactName"],["Prior permit number","priorPermitNo"],["Renewal term","renewalTerm"]];
+  var LABELS = { "food-handler": "Food Handler Permit", "business-license": "Business License", "fire-safety": "Fire Safety Inspection", "sign": "Sign Permit" };
+  function val(k){ if (k === "permitLabel") return LABELS[slug] || slug; return q.get(k) || "—"; }
+  var html = fields.map(function(f){ return '<div class="review-row"><span class="k">'+f[0]+'</span><span class="v">'+val(f[1])+'</span></div>'; }).join("");
   document.getElementById("review").innerHTML = html;
   function confirmSubmit(){
-    var n = "FH-2026-" + Math.floor(100000 + Math.random()*899999);
+    var p = PREFIX[slug] || "PMT";
+    var n = p + "-2026-" + Math.floor(100000 + Math.random()*899999);
     document.getElementById("conf-no").textContent = n;
     document.title = "Renewed " + n;
     document.getElementById("confirmation").style.display = "block";

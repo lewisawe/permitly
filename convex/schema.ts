@@ -68,6 +68,8 @@ export default defineSchema({
     type: v.string(), // e.g. "food-handler"
     agency: v.string(), // e.g. "Springfield City Permits"
     portalUrl: v.string(),
+    // Slug identifying the permit type in the mock portal (?permit=<slug>).
+    portalSlug: v.optional(v.string()),
     deadline: v.number(), // ms since epoch
     status: permitStatus,
     lastConfirmation: v.optional(v.string()),

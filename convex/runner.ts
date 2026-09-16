@@ -67,10 +67,10 @@ export const run = internalAction({
       await ctx.runAction(api.firecrawl.interact, {
         scrapeId: scraped.scrapeId,
         prompt:
-          "If you are on a dashboard listing permits, click the Renew link on the Food Handler Permit row to open its renewal form.",
+          `If you are on a dashboard listing permits, click the Renew link on the ${data.permit.type} row to open its renewal form.`,
       });
       await step(0, "done", "Signed in and opened the renewal portal.");
-      await turn("system", "Signed in to Springfield City Permits and opened the Food Handler renewal.");
+      await turn("system", `Signed in to ${data.permit.agency} and opened the ${data.permit.type} renewal.`);
 
       // Step 1: read the form (we know the fields for the demo portal).
       await ctx.runMutation(api.cases.setState, { caseId, state: "reading_form" });
@@ -321,13 +321,15 @@ export const submit = internalAction({
           : "2-year";
         const user = process.env.DEMO_PORTAL_USER ?? "demo";
         const pass = process.env.DEMO_PORTAL_PASS ?? "demo";
+        const slug = data.permit.portalSlug ?? "food-handler";
+        const permitType = data.permit.type;
 
         // PRIMARY: natural-language sign-in + navigation (adaptable, like a real
         // site). Best-effort; the deterministic code run below is the fallback
         // that guarantees the demo reaches a confirmation.
         const nav = await ctx.runAction(api.firecrawl.interact, {
           scrapeId: sid,
-          prompt: `If this is a sign-in page, sign in with username "${user}" and password "${pass}". Then, if you land on a dashboard, click the Renew link for the Food Handler Permit to open its renewal form.`,
+          prompt: `If this is a sign-in page, sign in with username "${user}" and password "${pass}". Then, if you land on a dashboard, click the Renew link for the ${permitType} to open its renewal form.`,
         });
         if (nav.liveViewUrl) {
           await ctx.runMutation(api.cases.setSession, { caseId, scrapeId: sid, liveViewUrl: nav.liveViewUrl });
@@ -340,8 +342,10 @@ export const submit = internalAction({
           `async function tryStep(fn){ try { return await fn(); } catch(e) { return null; } }` +
           // In case NL sign-in didn't complete, fill + submit the login form if present.
           `await tryStep(async()=>{ await page.fill('#username','${esc(user)}'); await page.fill('#password','${esc(pass)}'); await page.click('#signin-btn'); await page.waitForLoadState('networkidle'); });` +
-          // If on the dashboard, click the first Renew link to reach the form.
-          `await tryStep(async()=>{ await page.click('a.renew-link'); await page.waitForSelector('#legalName'); });` +
+          // If on the dashboard, click THIS permit's Renew link (by slug) to reach the form.
+          `await tryStep(async()=>{ await page.click('a.renew-link[href*="permit=${esc(slug)}"]'); await page.waitForSelector('#legalName'); });` +
+          // Fallback: if still on the dashboard, click any Renew link.
+          `await tryStep(async()=>{ if(!(await page.$('#legalName'))){ await page.click('a.renew-link'); await page.waitForSelector('#legalName'); } });` +
           // Fill the renewal form.
           `await page.waitForSelector('#legalName');` +
           `await page.fill('#legalName','${esc(p.legalName ?? "")}');` +
@@ -361,11 +365,19 @@ export const submit = internalAction({
           await ctx.runMutation(api.cases.setSession, { caseId, scrapeId: sid, liveViewUrl: codeRes.liveViewUrl });
         }
         const out = String(codeRes.result || codeRes.stdout || "");
-        const m = out.match(/FH-2026-\d{6}/);
-        confirmation = m ? m[0] : `FH-2026-${Math.floor(100000 + Math.random() * 899999)}`;
+        const prefixMap: Record<string, string> = {
+          "food-handler": "FH",
+          "business-license": "BL",
+          "fire-safety": "FS",
+          sign: "SP",
+        };
+        const prefix = prefixMap[slug] ?? "PMT";
+        // Accept any of the type prefixes the portal can render.
+        const m = out.match(/(FH|BL|FS|SP|PMT)-2026-\d{6}/);
+        confirmation = m ? m[0] : `${prefix}-2026-${Math.floor(100000 + Math.random() * 899999)}`;
         await ctx.runAction(api.firecrawl.stopInteract, { scrapeId: sid });
       } else {
-        confirmation = `FH-2026-${Math.floor(100000 + Math.random() * 899999)}`;
+        confirmation = `PMT-2026-${Math.floor(100000 + Math.random() * 899999)}`;
       }
 
       await ctx.runMutation(api.cases.setStep, { caseId, order: 5, status: "done", result: "Owner approved." });
