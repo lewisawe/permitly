@@ -43,7 +43,9 @@ Board "Renew" (or an inbound email)
 
 - **Convex** — the whole backend: schema, indexes, queries/mutations/actions,
   scheduler (Firecrawl bursts), HTTP actions (AgentMail webhook + the mock
-  portal pages), cron (deadline watch), reactive board, static hosting.
+  portal pages + auth routes), cron (deadline watch), file storage (receipts),
+  anonymous auth with owner-scoping, reactive board, and two official components
+  (static hosting + rate limiter).
 - **Firecrawl** — `scrape` + `/interact` to sign in, navigate, fill and submit
   forms and pick booking slots; `interactCode` for deterministic reads. Returns
   the interactive live-view URL embedded in the case UI.
@@ -59,6 +61,12 @@ Board "Renew" (or an inbound email)
 - No submission or booking confirm without explicit approval (email "approve" or
   the board button). Enforced **server-side** in a Convex action — the client
   cannot bypass it.
+- **Owner-scoped:** anonymous auth gives every visitor an identity; the server
+  resolves the caller and `startRenewal` refuses without one (no cross-tenant
+  writes). A shared demo business is the fallback so judges open the URL with no
+  account.
+- **Rate-limited:** renewal starts are capped per business (Firecrawl actions
+  cost credits) via the rate-limiter component.
 - The AgentMail webhook is **Svix-verified**; unsigned requests are rejected.
 - Bounce/delivery-failure emails are ignored (never parsed as an owner reply).
 - All secrets live in Convex env vars; no real PII in the repo (the demo owner
@@ -110,7 +118,8 @@ Names only — values are never committed:
 
 `AGENTMAIL_API_KEY`, `AGENTMAIL_WEBHOOK_SECRET`, `FIRECRAWL_API_KEY`,
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `BEDROCK_MODEL_ID`,
-`PERMITLY_INBOX_ID`, `DEMO_OWNER_EMAIL`, `DEMO_PORTAL_USER`, `DEMO_PORTAL_PASS`.
+`PERMITLY_INBOX_ID`, `DEMO_OWNER_EMAIL`, `DEMO_PORTAL_USER`, `DEMO_PORTAL_PASS`,
+`JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL` (auth — set by `npx @convex-dev/auth`).
 `CONVEX_SITE_URL` is built in.
 
 ## Demo reset
@@ -134,6 +143,7 @@ npx convex run --prod seed:resetCases # clear cases only, keep permits
 | `convex/http.ts` | AgentMail webhook (Svix-verified) + mock portal pages |
 | `convex/portalHtml.ts` | the mock portal HTML (login/dashboard/form/review/booking) |
 | `convex/crons.ts` | daily deadline watch |
+| `convex/auth.ts` / `auth.config.ts` | Convex Auth (anonymous provider) |
 | `convex/seed.ts` | demo business + permits; reseed / resetCases |
 | `convex/permitly.test.ts` | convex-test suite (approval gate, state machine, routing) |
 | `src/components/Board.tsx` | compliance board |
@@ -144,4 +154,5 @@ npx convex run --prod seed:resetCases # clear cases only, keep permits
 - [`SPEC.md`](./SPEC.md) — architecture, data model, state machine, demo script
 - [`IMPROVEMENTS.md`](./IMPROVEMENTS.md) — pre-submission hardening audit + fixes
 - [`DEMO_ENHANCEMENTS.md`](./DEMO_ENHANCEMENTS.md) — visual + multi-page portal plan
+- [`CONVEX_DEPTH.md`](./CONVEX_DEPTH.md) — Convex depth additions (components, file storage, auth)
 - [`DESIGN.md`](./DESIGN.md) — how the design system maps into the app

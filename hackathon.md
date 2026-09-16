@@ -7,12 +7,12 @@
 - **Repo:** https://github.com/lewisawe/permitly
 - **Frontend:** Convex static hosting
 - **Convex deployment:** prod `glad-bee-780` (live); dev `aware-puma-695`
-- **Components:** Convex Static Hosting (`@convex-dev/static-hosting`). AgentMail and Firecrawl are called via their official REST APIs from Convex actions rather than their Convex components — see the note below.
-- **Convex features:** schema, indexes, queries, mutations, actions, HTTP actions, scheduled functions, cron jobs, static hosting
-- **Auth:** none
+- **Components:** Convex Static Hosting (`@convex-dev/static-hosting`) + Rate Limiter (`@convex-dev/rate-limiter`, caps renewal starts per business). AgentMail and Firecrawl are called via their official REST APIs from Convex actions rather than their Convex components — see the note below.
+- **Convex features:** schema, indexes, queries, mutations, actions, HTTP actions, scheduled functions, cron jobs, file storage, real-time reactive queries, static hosting
+- **Auth:** anonymous (Convex Auth `@convex-dev/auth`, Anonymous provider); data is owner-scoped, with a shared demo business fallback so judges open the live URL without an account
 - **AI models:** amazon.nova-lite-v1:0 (AWS Bedrock, via Converse)
 - **Started:** 2026-09-14T19:05:24Z
-- **Last updated:** 2026-09-16T23:06:00Z
+- **Last updated:** 2026-09-16T23:52:00Z
 
 ## Log
 
@@ -197,3 +197,29 @@ submit through the review page -> fresh confirmation FH-2026-826637 -> renewed.
 `npm run build`, `npm run lint` (0/0), `npm test` (11/11) green; all 5 portal
 routes return 200 on prod. Wrote a proper `README.md` (replacing the Vite
 boilerplate).
+
+### 2026-09-16 - working tree — deeper Convex usage (components, file storage, auth)
+
+Strengthened the "Convex depth" criterion (OpenAI is out — no credits — so we
+leaned into Convex). Plan + status in `CONVEX_DEPTH.md`. All deployed to prod.
+
+- **Rate Limiter component** (`@convex-dev/rate-limiter`): a per-business token
+  bucket caps how often a renewal (a real, credit-costing Firecrawl web action)
+  can be started; `startRenewal` throws a surfaced ConvexError when exceeded.
+- **File storage**: on submit, a confirmation receipt is generated and stored via
+  `ctx.storage`; `cases.receiptUrl` returns a reactive download URL and the case
+  view shows a "Download receipt" button.
+- **Live updates**: confirmed every read is a reactive `useQuery` (no polling);
+  added a "Live" affordance on the board.
+- **Anonymous auth + owner-scoping** (`@convex-dev/auth`, Anonymous provider):
+  every visitor gets an identity on load (no account needed, so judges still open
+  the live URL); data is owner-scoped and `startRenewal` requires an identity —
+  the server resolves the caller (verified on prod: an unauthenticated
+  `startRenewal` is refused). The board falls back to a shared demo business so a
+  first-time visitor always sees a populated board.
+
+Convex depth now: schema + indexes, queries, mutations, actions, HTTP actions,
+scheduler, cron, file storage, real-time reactive queries, anonymous auth with
+owner-scoping, and two official components (static-hosting + rate-limiter).
+Verified: `npm run build`, `npm run lint` (0/0), `npm test` (13 tests) green;
+prod board loads under anonymous auth; auth discovery endpoints live.

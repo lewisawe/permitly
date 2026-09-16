@@ -69,9 +69,22 @@ as extra real features.
   features: + file storage), README, progress.md.
 
 ## Status
-- [ ] 1. Plan (this doc)
+- [x] 1. Plan (this doc)
+- [x] A. Rate Limiter component (per-business startRenewal token bucket)
+- [x] B. File-storage receipts (stored receipt + download button)
+- [x] C. Live updates surfaced/verified (reactive useQuery, Live indicator)
+- [x] D. Anonymous auth + owner-scoping (Convex Auth, demo fallback preserved)
+- [~] E. Verify + deploy + docs (deployed to prod + board verified live;
+      finalizing docs; authenticated Renew being confirmed in browser)
+
+## Convex depth now (truthful list for judges)
+schema + indexes, queries, mutations, actions, HTTP actions, scheduler, cron,
+**file storage**, reactive live updates, anonymous **auth** with owner-scoping,
+and **two official components** (static-hosting + rate-limiter). Server resolves
+the caller (startRenewal refuses without identity — verified on prod).
 
 ## Revert point (before the risky auth work)
+
 Last-known-good commit with items A–C green and demo-parity:
 **`063303a`** — "feat: surface real-time updates with a Live indicator on the board".
 If Convex Auth (item D) destabilizes the verified demo:

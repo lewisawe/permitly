@@ -26,11 +26,14 @@ loop is enforced server-side; the AgentMail webhook is Svix-verified.
 
 Since the original core: hardened correctness/security (thread-aware reply
 routing, Svix verification, server-side approval gate, bounce filtering), added a
-convex-test suite (11 tests) and a deadline cron, rebuilt the case view visuals
+convex-test suite (13 tests) and a deadline cron, rebuilt the case view visuals
 (state-aware live view, animated timeline with email cards, step progress, loud
-approval), and made the mock portal a realistic multi-page flow driven by
-natural-language navigation. See `hackathon.md`, `IMPROVEMENTS.md`, and
-`DEMO_ENHANCEMENTS.md`.
+approval), made the mock portal a realistic multi-page flow driven by
+natural-language navigation, and deepened Convex usage: the Rate Limiter
+component (per-business renewal cap), file-storage receipts with a download
+button, and anonymous Convex Auth with owner-scoping (server resolves the caller;
+shared demo fallback keeps the no-account path). See `hackathon.md`,
+`IMPROVEMENTS.md`, `DEMO_ENHANCEMENTS.md`, and `CONVEX_DEPTH.md`.
 
 Remaining: record the <3-min demo video, push a public repo, and submit at
 vibeapps.dev with the AllGasHackathon tag.
