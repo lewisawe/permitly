@@ -70,12 +70,14 @@
 - Update hackathon.md/README only if user-facing behavior changes.
 
 ## Status
-- [ ] P0. Landing / home page
-- [ ] P1. Toast/banner (kill alert)
-- [ ] P2. Meta/favicon/OG
-- [ ] P3. Loading + empty skeletons
-- [ ] P4. Board framing
-- [ ] P5. Header refinement
-- [ ] P6. Case view head + hierarchy
-- [ ] P7. Micro-interactions
-- [ ] P8. Mobile doesn't break
+- [x] P0. Landing / home page
+- [x] P1. Toast/banner (kill alert)
+- [x] P2. Meta/favicon/OG
+- [x] P3. Loading + empty skeletons
+- [x] P4. Board framing
+- [x] P5. Header refinement
+- [x] P6. Case view head + hierarchy
+- [x] P7. Micro-interactions
+- [x] P8. Mobile doesn't break (table scroll, stacked bars, 640px breakpoint)
+
+All 8 verified: build + lint (0/0) + 13 tests green. Batch deploy pending (interactive).

@@ -161,6 +161,7 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
       </section>
 
       <section aria-label="Permits">
+        <div className="table-wrap">
         <table className="permit-table">
           <thead>
             <tr>
@@ -207,6 +208,7 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
             })}
           </tbody>
         </table>
+        </div>
       </section>
     </>
   );

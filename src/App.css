@@ -969,3 +969,45 @@
   color: var(--color-steel);
   font-size: 15px;
 }
+
+/* ============ Mobile (<=480px) — desktop-first, but don't break ============ */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 640px) {
+  .app-main {
+    padding: 24px 16px;
+  }
+  .app-header {
+    padding: 14px 16px;
+  }
+  .brand-tag {
+    display: none;
+  }
+  /* Keep the table readable: let it scroll horizontally rather than crush. */
+  .permit-table {
+    min-width: 560px;
+  }
+  .kpi-value {
+    font-size: 32px;
+  }
+  .board-title {
+    font-size: 24px;
+  }
+  .case-head {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .approval-bar,
+  .receipt-bar,
+  .landing-cta-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .toast {
+    left: 16px;
+    right: 16px;
+    max-width: none;
+  }
+}
