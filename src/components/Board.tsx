@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -12,6 +13,7 @@ import {
   AlarmClock,
   BellRing,
   BadgeCheck,
+  X,
 } from "lucide-react";
 
 function StatusPill({ status }: { status: PermitStatus }) {
@@ -48,6 +50,7 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
   const board = useQuery(api.permits.board, {});
   const seed = useMutation(api.seed.demo);
   const startRenewal = useMutation(api.permits.startRenewal);
+  const [toast, setToast] = useState<string | null>(null);
 
   const loading = board === undefined;
   const permits = board?.permits ?? [];
@@ -66,12 +69,13 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
       const caseId = await startRenewal({ permitId });
       onOpenCase(caseId);
     } catch (err) {
-      // Surface the rate-limit (or any server) message without crashing.
+      // Surface the rate-limit (or any server) message as an in-app toast.
       const msg =
         err && typeof err === "object" && "data" in err
           ? String((err as { data: unknown }).data)
           : "Could not start the renewal. Please try again.";
-      alert(msg);
+      setToast(msg);
+      window.setTimeout(() => setToast(null), 5000);
     }
   }
 
@@ -100,6 +104,18 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
 
   return (
     <>
+      {toast && (
+        <div className="toast" role="alert">
+          <span>{toast}</span>
+          <button
+            className="toast-close"
+            onClick={() => setToast(null)}
+            aria-label="Dismiss"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
       <section className="kpis" aria-label="Summary">
         <div className="kpis-live" aria-hidden="true">
           <span className="live-dot" /> Live

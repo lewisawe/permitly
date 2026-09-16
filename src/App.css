@@ -834,3 +834,40 @@
 @media (max-width: 480px) {
   .how-steps { grid-template-columns: 1fr; }
 }
+
+/* Toast — in-app notice (replaces alert). Top-right, on-system, auto-dismiss. */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 360px;
+  padding: 12px 14px;
+  background: var(--color-carbon);
+  color: var(--color-paper);
+  border-radius: var(--radius-link);
+  box-shadow: var(--shadow-hard);
+  font-size: 14px;
+  line-height: 1.4;
+  animation: toastIn 0.25s ease-out both;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.toast-close {
+  display: inline-flex;
+  background: none;
+  border: none;
+  color: var(--color-ash);
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.toast-close:hover { color: var(--color-paper); }
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
