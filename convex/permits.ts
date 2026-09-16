@@ -1,8 +1,16 @@
 import { query, mutation, internalMutation } from "./_generated/server";
-import { v } from "convex/values";
-import { api, internal } from "./_generated/api";
+import { v, ConvexError } from "convex/values";
+import { api, internal, components } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { permitStatus } from "./schema";
+import { RateLimiter, MINUTE } from "@convex-dev/rate-limiter";
+
+// Rate limit real, credit-costing renewal runs per business: a token bucket that
+// allows a small burst then refills slowly. Firecrawl /interact costs credits,
+// so this protects against accidental/abusive repeat triggers.
+const rateLimiter = new RateLimiter(components.rateLimiter, {
+  startRenewal: { kind: "token bucket", rate: 3, period: MINUTE, capacity: 2 },
+});
 
 // Board data: all permits for a business, with their active case (if any).
 export const board = query({
@@ -77,6 +85,22 @@ export const setBooking = mutation({
 export const startRenewal = mutation({
   args: { permitId: v.id("permits") },
   handler: async (ctx, { permitId }): Promise<Id<"cases">> => {
+    // Rate-limit renewal runs per business (real Firecrawl web actions cost
+    // credits). Keyed by the permit's business; throws a ConvexError the client
+    // can surface if the limit is exceeded.
+    const permitForLimit = await ctx.db.get(permitId);
+    if (permitForLimit) {
+      const { ok, retryAfter } = await rateLimiter.limit(ctx, "startRenewal", {
+        key: permitForLimit.businessId,
+      });
+      if (!ok) {
+        const secs = Math.ceil((retryAfter ?? 0) / 1000);
+        throw new ConvexError(
+          `Too many renewals started just now. Try again in about ${secs}s.`,
+        );
+      }
+    }
+
     const caseId: Id<"cases"> = await ctx.runMutation(api.cases.open, {
       permitId,
       inboxId: process.env.PERMITLY_INBOX_ID,

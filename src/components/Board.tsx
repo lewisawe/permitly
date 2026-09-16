@@ -62,8 +62,17 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
   const renewed = permits.filter((p) => p.status === "renewed").length;
 
   async function handleRenew(permitId: Id<"permits">) {
-    const caseId = await startRenewal({ permitId });
-    onOpenCase(caseId);
+    try {
+      const caseId = await startRenewal({ permitId });
+      onOpenCase(caseId);
+    } catch (err) {
+      // Surface the rate-limit (or any server) message without crashing.
+      const msg =
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data: unknown }).data)
+          : "Could not start the renewal. Please try again.";
+      alert(msg);
+    }
   }
 
   if (loading) {

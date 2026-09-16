@@ -12,6 +12,7 @@
     "deploy": "npx @convex-dev/static-hosting deploy"
   },
   "dependencies": {
+    "@convex-dev/rate-limiter": "^0.4.0",
     "@convex-dev/static-hosting": "^0.2.1",
     "convex": "^1.45.0",
     "lucide-react": "^1.46.0",

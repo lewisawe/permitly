@@ -215,3 +215,23 @@ describe("deadline watch", () => {
     expect(res.opened).toBe(0);
   });
 });
+
+describe("rate limiting", () => {
+  test("startRenewal throws once the per-business burst is exceeded", async () => {
+    const t = convexTest(schema, modules);
+    const { permitId } = await seedPermit(t);
+    // Bucket: capacity 2. The first calls succeed; a rapid burst eventually trips
+    // the limit and throws (a ConvexError the client surfaces). We don't finish
+    // scheduled functions here (the runner is a Node action needing network).
+    let threw = false;
+    for (let i = 0; i < 6; i++) {
+      try {
+        await t.mutation(api.permits.startRenewal, { permitId });
+      } catch {
+        threw = true;
+        break;
+      }
+    }
+    expect(threw).toBe(true);
+  });
+});
