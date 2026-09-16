@@ -871,3 +871,64 @@
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
 }
+
+/* Skeletons — shimmer placeholders while reactive queries load. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-carbon) 8%, transparent);
+  border-radius: 6px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.55),
+    transparent
+  );
+  animation: shimmer 1.4s infinite;
+}
+.skeleton-line {
+  height: 14px;
+}
+.skeleton-kpi-ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+.skeleton-row:first-child { border-top: none; }
+@keyframes shimmer {
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}
+
+/* Board framing — cold-open clarity above the KPIs. */
+.board-head {
+  margin-bottom: 24px;
+}
+.board-title {
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+.board-subtitle {
+  margin: 0;
+  color: var(--color-steel);
+  font-size: 15px;
+}

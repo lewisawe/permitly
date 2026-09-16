@@ -41,8 +41,26 @@ export function CaseView({
 
   if (data === undefined) {
     return (
-      <div className="status-line" role="status">
-        Loading case…
+      <div className="case-view" aria-busy="true" aria-label="Loading case">
+        <div className="skeleton skeleton-line" style={{ width: "120px", height: "20px" }} />
+        <div className="skeleton skeleton-line" style={{ width: "40%", height: "28px", marginTop: 8 }} />
+        <div className="case-grid">
+          <section className="panel">
+            <div className="skeleton skeleton-line" style={{ width: "30%" }} />
+            <div className="skeleton skeleton-line" style={{ width: "90%", marginTop: 16 }} />
+            <div className="skeleton skeleton-line" style={{ width: "80%", marginTop: 10 }} />
+            <div className="skeleton skeleton-line" style={{ width: "85%", marginTop: 10 }} />
+          </section>
+          <section className="panel">
+            <div className="skeleton skeleton-line" style={{ width: "30%" }} />
+            <div className="skeleton skeleton-line" style={{ width: "95%", marginTop: 16 }} />
+            <div className="skeleton skeleton-line" style={{ width: "70%", marginTop: 10 }} />
+          </section>
+          <section className="panel panel-wide">
+            <div className="skeleton skeleton-line" style={{ width: "30%" }} />
+            <div className="skeleton" style={{ height: "300px", marginTop: 16, borderRadius: 8 }} />
+          </section>
+        </div>
       </div>
     );
   }

@@ -54,6 +54,7 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
 
   const loading = board === undefined;
   const permits = board?.permits ?? [];
+  const business = board?.business;
 
   const dueSoon = permits.filter((p) => {
     const u = deadlineInfo(p.deadline).urgency;
@@ -81,8 +82,32 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
 
   if (loading) {
     return (
-      <div className="status-line" role="status">
-        Loading your compliance board…
+      <div aria-busy="true" aria-label="Loading your compliance board">
+        <section className="kpis">
+          <div className="kpis-live" aria-hidden="true">
+            <span className="live-dot" /> Live
+          </div>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="kpi">
+              <div className="skeleton skeleton-kpi-ic" />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton skeleton-line" style={{ width: "48px", height: "32px" }} />
+                <div className="skeleton skeleton-line" style={{ width: "70%", marginTop: 8 }} />
+              </div>
+            </div>
+          ))}
+        </section>
+        <section>
+          <div className="permit-table" style={{ padding: "8px 0" }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="skeleton-row">
+                <div className="skeleton skeleton-line" style={{ width: "40%" }} />
+                <div className="skeleton skeleton-line" style={{ width: "20%" }} />
+                <div className="skeleton skeleton-line" style={{ width: "16%" }} />
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     );
   }
@@ -116,6 +141,15 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
           </button>
         </div>
       )}
+      <div className="board-head">
+        <h1 className="board-title">Compliance board</h1>
+        <p className="board-subtitle">
+          {business?.name
+            ? `${business.name} — every permit, deadline and renewal in one place.`
+            : "Every permit, deadline and renewal in one place."}
+        </p>
+      </div>
+
       <section className="kpis" aria-label="Summary">
         <div className="kpis-live" aria-hidden="true">
           <span className="live-dot" /> Live
