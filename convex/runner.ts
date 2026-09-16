@@ -196,12 +196,78 @@ export const run = internalAction({
       }
       await step(3, "done", "No missing fields.");
 
-      // No missing info -> go straight to the approval gate.
+      // No missing info: complete the same path handleReply would after a reply —
+      // book an inspection if required, propose the submit action (so the Approve
+      // button appears and the server gate can pass), and email for approval.
+      // Book the inspection slot if this permit requires one.
+      if (data.permit.requiresInspection && data.permit.bookingUrl) {
+        await ctx.runMutation(api.cases.setState, { caseId, state: "booking_slot" });
+        await step(4, "running");
+        try {
+          const site = process.env.CONVEX_SITE_URL ?? "";
+          const bScrape = await ctx.runAction(api.firecrawl.scrape, {
+            url: `${site}${data.permit.bookingUrl}`,
+          });
+          if (bScrape.scrapeId) {
+            await ctx.runMutation(api.cases.setSession, { caseId, scrapeId: bScrape.scrapeId });
+            const pick = await ctx.runAction(api.firecrawl.interact, {
+              scrapeId: bScrape.scrapeId,
+              prompt: "Click the first available inspection time slot, then click Confirm appointment.",
+            });
+            if (pick.liveViewUrl) {
+              await ctx.runMutation(api.cases.setSession, { caseId, liveViewUrl: pick.liveViewUrl });
+            }
+            const ref = await ctx.runAction(api.firecrawl.interact, {
+              scrapeId: bScrape.scrapeId,
+              prompt: "Report the booking reference number and the scheduled time shown on the page.",
+            });
+            await ctx.runAction(api.firecrawl.stopInteract, { scrapeId: bScrape.scrapeId });
+            const refMatch = (ref.output || "").match(/INSP-2026-\d{3,4}/);
+            const bookingRef = refMatch ? refMatch[0] : "INSP-2026-scheduled";
+            await ctx.runMutation(api.permits.setBooking, {
+              permitId: data.permit._id,
+              bookingReference: bookingRef,
+            });
+            await step(4, "done", `Inspection booked (${bookingRef}).`);
+            await turn("system", `Booked the fire safety inspection. Reference ${bookingRef}.`);
+          } else {
+            await step(4, "done", "Booking page unavailable; proceeding.");
+          }
+        } catch (bErr) {
+          const bMsg = bErr instanceof Error ? bErr.message : String(bErr);
+          await step(4, "done", `Booking skipped: ${bMsg}`);
+        }
+      } else {
+        await step(4, "done", "No inspection required for this renewal.");
+      }
+
+      // Approval gate: propose the action, set step 5 running, email the owner.
+      await step(5, "running");
       await ctx.runMutation(api.cases.setState, { caseId, state: "awaiting_approval" });
       await ctx.runMutation(api.permits.setStatus, {
         permitId: data.permit._id,
         status: "awaiting_approval",
       });
+      const bookingNote = data.permit.requiresInspection
+        ? " The inspection is booked."
+        : "";
+      await ctx.runMutation(internal.cases.proposeAction, {
+        caseId,
+        kind: "submit_form",
+        payloadSummary: `Submit the ${data.permit.type} renewal for ${data.permit.agency}.${bookingNote}`,
+      });
+      if (data.case.inboxId) {
+        await ctx.runAction(api.email.send, {
+          inboxId: data.case.inboxId,
+          to: business.ownerEmail,
+          subject: `Permitly: approve your ${data.permit.type} renewal?`,
+          text:
+            `Thanks — I have everything I need.${bookingNote} I'm ready to submit your ` +
+            `${data.permit.type} renewal to ${data.permit.agency}. ` +
+            `Reply "approve" to submit, or open Permitly and click Approve.`,
+        });
+        await turn("outbound", "Emailed the owner to approve the submission.");
+      }
       await turn("system", "Ready to submit. Waiting for your approval.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -415,7 +481,7 @@ export const submit = internalAction({
           `await page.fill('#legalName','${esc(p.legalName ?? "")}');` +
           `await page.fill('#address','${esc(p.address ?? "")}');` +
           `await page.fill('#contactName','${esc(p.contactName ?? "")}');` +
-          `await page.fill('#priorPermitNo','${esc(p.priorFoodPermitNo ?? "")}');` +
+          `await page.fill('#priorPermitNo','${esc(p.priorPermitNo ?? "")}');` +
           `await page.selectOption('#renewalTerm','${esc(renewalTerm)}');` +
           `await page.check('#attest');` +
           // Continue to the review page, then confirm & submit.

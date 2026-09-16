@@ -26,7 +26,7 @@ export const demo = mutation({
         legalName: "Brick Oven Pizza LLC",
         address: "142 Main St, Springfield",
         contactName: "Sam Rivera",
-        priorFoodPermitNo: "FH-2025-0417",
+        priorPermitNo: "FH-2025-0417",
       },
     });
 
