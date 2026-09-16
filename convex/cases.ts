@@ -9,18 +9,67 @@ export const getBusiness = internalQuery({
   handler: (ctx, { businessId }) => ctx.db.get(businessId),
 });
 
-// Internal: find the most recent open case awaiting the owner on a given inbox,
-// so an inbound reply can be routed to the right case. (Single-inbox demo: we
-// take the newest case in awaiting_info; a multi-inbox build would match threadId.)
-export const findAwaitingCase = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const c = await ctx.db
+// Internal: route an inbound email to the right case. Prefer an exact threadId
+// match (by_thread index); fall back to the newest case still waiting on the
+// owner (single-inbox demo, where a forwarded reply may lack our thread id).
+export const routeInbound = internalQuery({
+  args: { threadId: v.optional(v.string()) },
+  handler: async (ctx, { threadId }) => {
+    if (threadId) {
+      const byThread = await ctx.db
+        .query("cases")
+        .withIndex("by_thread", (q) => q.eq("threadId", threadId))
+        .order("desc")
+        .first();
+      if (byThread) return byThread;
+    }
+    // Fallback: newest case awaiting the owner in either human-gated state.
+    const awaitingApproval = await ctx.db
+      .query("cases")
+      .withIndex("by_state", (q) => q.eq("state", "awaiting_approval"))
+      .order("desc")
+      .first();
+    const awaitingInfo = await ctx.db
       .query("cases")
       .withIndex("by_state", (q) => q.eq("state", "awaiting_info"))
       .order("desc")
       .first();
-    return c;
+    // Prefer the more recently updated of the two waiting cases.
+    if (awaitingApproval && awaitingInfo) {
+      return awaitingApproval._creationTime >= awaitingInfo._creationTime
+        ? awaitingApproval
+        : awaitingInfo;
+    }
+    return awaitingApproval ?? awaitingInfo ?? null;
+  },
+});
+
+// Internal: record which profile field a case is waiting on (set when we email
+// the owner for a missing detail).
+export const setAwaitingField = internalMutation({
+  args: { caseId: v.id("cases"), field: v.optional(v.string()) },
+  handler: async (ctx, { caseId, field }) => {
+    await ctx.db.patch(caseId, { awaitingField: field });
+  },
+});
+
+// Internal: persist an owner-supplied value onto the business profile so later
+// steps (submit) use the real answer instead of a hard-coded default. Returns
+// the field that was filled, if any.
+export const applyOwnerAnswer = internalMutation({
+  args: { caseId: v.id("cases"), value: v.string() },
+  handler: async (ctx, { caseId, value }) => {
+    const c = await ctx.db.get(caseId);
+    if (!c || !c.awaitingField) return { field: null as string | null };
+    const business = await ctx.db.get(c.businessId);
+    if (!business) return { field: null as string | null };
+    const cleaned = value.trim().slice(0, 200);
+    await ctx.db.patch(c.businessId, {
+      profile: { ...business.profile, [c.awaitingField]: cleaned },
+    });
+    const field = c.awaitingField;
+    await ctx.db.patch(caseId, { awaitingField: undefined });
+    return { field };
   },
 });
 
@@ -188,6 +237,27 @@ export const proposeAction = internalMutation({
       payloadSummary,
       status: "proposed",
     });
+  },
+});
+
+// Internal: the latest action for a case (used by submit to re-validate that an
+// approved submit_form action exists before doing anything real).
+export const latestAction = internalQuery({
+  args: { caseId: v.id("cases") },
+  handler: async (ctx, { caseId }) => {
+    return await ctx.db
+      .query("actions")
+      .withIndex("by_case", (q) => q.eq("caseId", caseId))
+      .order("desc")
+      .first();
+  },
+});
+
+// Internal: mark an action executed with its confirmation number.
+export const markExecuted = internalMutation({
+  args: { actionId: v.id("actions"), confirmation: v.string() },
+  handler: async (ctx, { actionId, confirmation }) => {
+    await ctx.db.patch(actionId, { status: "executed", confirmation });
   },
 });
 

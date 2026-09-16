@@ -97,33 +97,70 @@ export function CaseView({
       <div className="case-grid">
         {/* Step plan */}
         <section className="panel">
-          <h3>Plan</h3>
-          <ol className="step-list">
-            {steps
-              .sort((a, b) => a.order - b.order)
-              .map((s) => (
-                <li key={s._id} className={`step step-${s.status}`}>
-                  <span className="step-ic" aria-hidden="true">
-                    {STEP_ICON[s.status]}
+          {(() => {
+            const sorted = [...steps].sort((a, b) => a.order - b.order);
+            const doneCount = sorted.filter((s) => s.status === "done").length;
+            const total = sorted.length || 8;
+            const pct = Math.round((doneCount / total) * 100);
+            return (
+              <>
+                <h3>
+                  Plan
+                  <span className="step-count">
+                    {Math.min(doneCount + 1, total)} of {total}
                   </span>
-                  <span>{s.detail}</span>
-                </li>
-              ))}
-          </ol>
+                </h3>
+                <div className="progress-track" aria-hidden="true">
+                  <div className="progress-fill" style={{ width: `${pct}%` }} />
+                </div>
+                <ol className="step-list">
+                  {sorted.map((s) => (
+                    <li key={s._id} className={`step step-${s.status}`}>
+                      <span className="step-ic" aria-hidden="true">
+                        {STEP_ICON[s.status]}
+                      </span>
+                      <span>{s.detail}</span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            );
+          })()}
         </section>
 
         {/* Timeline */}
         <section className="panel">
           <h3>Activity</h3>
           <ul className="turn-list">
-            {turns.map((t) => (
-              <li key={t._id} className={`turn turn-${t.direction}`}>
-                <span className="turn-ic" aria-hidden="true">
-                  {TURN_ICON[t.direction]}
-                </span>
-                <span>{t.summary}</span>
-              </li>
-            ))}
+            {turns.map((t) => {
+              const isEmail =
+                (t.direction === "outbound" || t.direction === "inbound") &&
+                /email|replied|approve|renewal|permit|detail|owner/i.test(t.summary);
+              if (isEmail) {
+                const outbound = t.direction === "outbound";
+                return (
+                  <li key={t._id} className="turn turn-animate">
+                    <div className={`email-card ${outbound ? "email-out" : "email-in"}`}>
+                      <div className="email-meta">
+                        <Mail size={13} aria-hidden="true" />
+                        <span>
+                          {outbound ? "Permitly → owner" : "Owner → Permitly"}
+                        </span>
+                      </div>
+                      <div className="email-body">{t.summary}</div>
+                    </div>
+                  </li>
+                );
+              }
+              return (
+                <li key={t._id} className={`turn turn-${t.direction} turn-animate`}>
+                  <span className="turn-ic" aria-hidden="true">
+                    {TURN_ICON[t.direction]}
+                  </span>
+                  <span>{t.summary}</span>
+                </li>
+              );
+            })}
           </ul>
         </section>
 
@@ -132,20 +169,77 @@ export function CaseView({
           <h3>
             <Bot size={16} aria-hidden="true" /> Agent live view
           </h3>
-          {c.liveViewUrl ? (
-            <iframe
-              className="live-view"
-              src={c.liveViewUrl}
-              title="Firecrawl live view"
-            />
-          ) : (
-            <div className="live-view-placeholder">
-              The agent's browser session will appear here when it starts working
-              on the portal.
-            </div>
-          )}
+          <LiveView state={c.state} liveViewUrl={c.liveViewUrl} permit={permit} />
         </section>
       </div>
+    </div>
+  );
+}
+
+// State-aware live view: shows the Firecrawl browser when a session is active,
+// and a clear, labeled status the rest of the time so the panel is never blank.
+const LIVE_MESSAGE: Record<string, { title: string; body: string; tone: string }> = {
+  intake: { title: "Opening the case…", body: "Setting up the renewal.", tone: "working" },
+  planning: { title: "Planning the renewal…", body: "Working out the steps.", tone: "working" },
+  finding_page: { title: "Opening the portal…", body: "The agent is logging in and finding the renewal page.", tone: "working" },
+  reading_form: { title: "Reading the form…", body: "The agent is inspecting the fields on the page.", tone: "working" },
+  filling_form: { title: "Filling the form…", body: "Watch the agent type each field on the live page.", tone: "working" },
+  awaiting_info: { title: "Paused — waiting for your reply", body: "The agent emailed you for one missing detail and is waiting for your response.", tone: "waiting" },
+  booking_slot: { title: "Booking the inspection…", body: "The agent is choosing an appointment slot.", tone: "working" },
+  awaiting_approval: { title: "Ready to submit — waiting for approval", body: "The agent has everything it needs. Approve to let it submit.", tone: "waiting" },
+  submitting: { title: "Submitting the renewal…", body: "The agent is submitting the form and reading the confirmation.", tone: "working" },
+  recording: { title: "Recording the receipt…", body: "Saving the confirmation number.", tone: "working" },
+  done: { title: "Renewal complete", body: "The permit is renewed and the confirmation is recorded.", tone: "done" },
+  blocked: { title: "Needs attention", body: "The agent hit a problem and has paused.", tone: "blocked" },
+};
+
+function LiveView({
+  state,
+  liveViewUrl,
+  permit,
+}: {
+  state: string;
+  liveViewUrl?: string;
+  permit: { lastConfirmation?: string } | null;
+}) {
+  const msg = LIVE_MESSAGE[state] ?? LIVE_MESSAGE.intake;
+  // Show the real browser whenever a session URL exists and the agent is actively
+  // driving it (not while paused for a human or finished).
+  const activeStates = ["finding_page", "reading_form", "filling_form", "booking_slot", "submitting"];
+  const showFrame = !!liveViewUrl && activeStates.includes(state);
+
+  if (showFrame) {
+    return (
+      <>
+        <p className="live-view-hint">
+          Watch the agent open the portal and act on the form. You can take over
+          in this window at any time.
+        </p>
+        <iframe className="live-view" src={liveViewUrl} title="Firecrawl live view" />
+      </>
+    );
+  }
+
+  return (
+    <div className={`live-status live-status-${msg.tone}`} role="status">
+      <div className="live-status-icon" aria-hidden="true">
+        {msg.tone === "waiting" ? (
+          <Mail size={22} />
+        ) : msg.tone === "done" ? (
+          <ShieldCheck size={22} />
+        ) : msg.tone === "blocked" ? (
+          <CircleAlert size={22} />
+        ) : (
+          <Loader2 size={22} className="step-running" />
+        )}
+      </div>
+      <div className="live-status-title">{msg.title}</div>
+      <div className="live-status-body">{msg.body}</div>
+      {state === "done" && permit?.lastConfirmation && (
+        <div className="live-status-conf">
+          Confirmation <span>{permit.lastConfirmation}</span>
+        </div>
+      )}
     </div>
   );
 }

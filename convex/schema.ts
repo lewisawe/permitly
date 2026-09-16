@@ -84,6 +84,9 @@ export default defineSchema({
     liveViewUrl: v.optional(v.string()), // Firecrawl interactive live view
     scrapeId: v.optional(v.string()), // Firecrawl session
     lastError: v.optional(v.string()),
+    // The profile field the case is currently waiting on the owner to supply
+    // (set when we email for a missing field; consumed when they reply).
+    awaitingField: v.optional(v.string()),
   })
     .index("by_permit", ["permitId"])
     .index("by_state", ["state"])

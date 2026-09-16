@@ -3,6 +3,18 @@
 > Convex All Gas Hackathon (OpenAI · Firecrawl · AgentMail). Deadline 2026-09-22 12:00 PM PT.
 > Frontend host: convex.site (Convex Static Hosting). Status: pre-build spec.
 
+> **Updates since this spec (2026-09-16).** This is the original pre-build plan;
+> the shipped app follows it closely with a few deliberate changes, all recorded
+> in `hackathon.md`, `IMPROVEMENTS.md`, and `DEMO_ENHANCEMENTS.md`:
+> - **OpenAI slot → AWS Bedrock Nova** (`amazon.nova-lite-v1:0`, SigV4 Converse).
+> - **AgentMail + Firecrawl called via direct REST**, not their Convex components
+>   (the AgentMail component's functions didn't resolve at runtime).
+> - **The mock portal is now multi-page** (section 7 describes a single page):
+>   login → dashboard → form → review/confirm, and the agent signs in and
+>   navigates via natural-language interact with a deterministic fallback.
+> - **Deployed to production** at https://glad-bee-780.convex.site and verified
+>   end to end (real email round-trip, inspection booking, email approval, submit).
+
 ## 1. One-liner
 
 Forward one email. Your business permits renew themselves, book their own

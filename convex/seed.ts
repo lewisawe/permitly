@@ -8,16 +8,20 @@ const DAY = 24 * 60 * 60 * 1000;
 export const demo = mutation({
   args: {},
   handler: async (ctx) => {
+    // Owner email comes from an env var so a real address is never committed to
+    // the repo. Falls back to a fictional demo address when unset.
+    const ownerEmail = process.env.DEMO_OWNER_EMAIL ?? "owner@brickovenpizza.demo";
+
     const existing = await ctx.db
       .query("businesses")
-      .withIndex("by_owner", (q) => q.eq("ownerEmail", "owner@brickovenpizza.demo"))
+      .withIndex("by_owner", (q) => q.eq("ownerEmail", ownerEmail))
       .first();
     if (existing) return { businessId: existing._id, seeded: false };
 
     const now = Date.now();
     const businessId = await ctx.db.insert("businesses", {
       name: "Brick Oven Pizza (DEMO)",
-      ownerEmail: "owner@brickovenpizza.demo",
+      ownerEmail,
       profile: {
         legalName: "Brick Oven Pizza LLC",
         address: "142 Main St, Springfield",
@@ -45,7 +49,7 @@ export const demo = mutation({
       {
         type: "Food Handler Permit",
         agency: "Springfield City Permits",
-        portalUrl: "/demo-portal/food-handler",
+        portalUrl: "/demo-portal/login",
         deadline: now + 3 * DAY, // due soon (red)
         status: "tracked",
         requiresInspection: true,

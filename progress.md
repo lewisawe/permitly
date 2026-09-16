@@ -15,11 +15,25 @@ Human-in-the-loop: nothing is submitted without explicit approval.
 Full pitch, data model, and demo script are in `SPEC.md`. The competitive
 research and idea validation are in `../idea-scorecard.md`.
 
-## Current status: CORE COMPLETE + POLISHED, not yet publicly deployed
+## Current status: DEPLOYED TO PRODUCTION + verified live end to end
 
-The whole loop runs and is verified live on the Convex **dev** deployment.
-Everything is styled to the two design systems. Not yet deployed to production
-(`convex.site` public URL) — that's the first task tomorrow.
+Live at **https://glad-bee-780.convex.site** (prod `glad-bee-780`). The full
+loop is verified on prod with a real email round-trip: the agent signs in to the
+multi-page mock portal, navigates the dashboard, fills the form, emails the owner
+for a missing field, books the inspection, and — after an emailed "approve" —
+submits through a review/confirm page and records the confirmation. Human-in-the-
+loop is enforced server-side; the AgentMail webhook is Svix-verified.
+
+Since the original core: hardened correctness/security (thread-aware reply
+routing, Svix verification, server-side approval gate, bounce filtering), added a
+convex-test suite (11 tests) and a deadline cron, rebuilt the case view visuals
+(state-aware live view, animated timeline with email cards, step progress, loud
+approval), and made the mock portal a realistic multi-page flow driven by
+natural-language navigation. See `hackathon.md`, `IMPROVEMENTS.md`, and
+`DEMO_ENHANCEMENTS.md`.
+
+Remaining: record the <3-min demo video, push a public repo, and submit at
+vibeapps.dev with the AllGasHackathon tag.
 
 ## Stack / architecture (all four sponsors do real work)
 

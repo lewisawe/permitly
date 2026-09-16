@@ -9,6 +9,7 @@
  */
 
 import type * as cases from "../cases.js";
+import type * as crons from "../crons.js";
 import type * as email from "../email.js";
 import type * as firecrawl from "../firecrawl.js";
 import type * as health from "../health.js";
@@ -27,6 +28,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   cases: typeof cases;
+  crons: typeof crons;
   email: typeof email;
   firecrawl: typeof firecrawl;
   health: typeof health;

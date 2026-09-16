@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -13,10 +13,12 @@ export const board = query({
       : (await ctx.db.query("businesses").take(1))[0];
     if (!business) return { business: null, permits: [] };
 
+    // Permits per business are few (a business tracks ~5-15); bound anyway so we
+    // never .collect() an unbounded set (SPEC section 5).
     const permits = await ctx.db
       .query("permits")
       .withIndex("by_business", (q) => q.eq("businessId", business._id))
-      .collect();
+      .take(100);
 
     const withCase = await Promise.all(
       permits.map(async (p) => {
@@ -89,5 +91,37 @@ export const startRenewal = mutation({
       await ctx.scheduler.runAfter(0, internal.runner.run, { caseId, portalUrl });
     }
     return caseId;
+  },
+});
+
+// Deadline watch (called by the daily cron). For every permit still "tracked"
+// whose deadline falls within `withinDays`, open a renewal case and kick off the
+// runner. The human approval gate still stops before any real submission — this
+// only starts the automated prep so nothing lapses unattended. Idempotent:
+// cases.open returns the existing open case if one is already running.
+export const watchDeadlines = internalMutation({
+  args: { withinDays: v.optional(v.number()) },
+  handler: async (ctx, { withinDays }): Promise<{ opened: number }> => {
+    const horizon = Date.now() + (withinDays ?? 7) * 24 * 60 * 60 * 1000;
+    const due = await ctx.db
+      .query("permits")
+      .withIndex("by_deadline", (q) => q.lte("deadline", horizon))
+      .take(100);
+
+    let opened = 0;
+    for (const permit of due) {
+      if (permit.status !== "tracked") continue;
+      const caseId: Id<"cases"> = await ctx.runMutation(api.cases.open, {
+        permitId: permit._id,
+        inboxId: process.env.PERMITLY_INBOX_ID,
+      });
+      const site = process.env.CONVEX_SITE_URL ?? "";
+      const portalUrl = permit.portalUrl.startsWith("http")
+        ? permit.portalUrl
+        : `${site}${permit.portalUrl}`;
+      await ctx.scheduler.runAfter(0, internal.runner.run, { caseId, portalUrl });
+      opened++;
+    }
+    return { opened };
   },
 });

@@ -113,8 +113,10 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
             {permits.map((p) => {
               const d = deadlineInfo(p.deadline);
               const active = p.activeCase;
+              const needsYou =
+                p.status === "awaiting_info" || p.status === "awaiting_approval";
               return (
-                <tr key={p._id}>
+                <tr key={p._id} className={needsYou ? "row-needs-you" : undefined}>
                   <td className="cell-type">{p.type}</td>
                   <td className="cell-muted">{p.agency}</td>
                   <td className={`cell-deadline urgency-${d.urgency}`}>{d.label}</td>

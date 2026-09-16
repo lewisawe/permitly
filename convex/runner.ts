@@ -39,7 +39,7 @@ export const run = internalAction({
     }
 
     try {
-      // Step 0: find/open the official page (scrape it).
+      // Step 0: find/open the official page (scrape the login page).
       await ctx.runMutation(api.cases.setState, { caseId, state: "finding_page" });
       await step(0, "running");
       const scraped = await ctx.runAction(api.firecrawl.scrape, { url: portalUrl });
@@ -48,8 +48,28 @@ export const run = internalAction({
         caseId,
         scrapeId: scraped.scrapeId,
       });
-      await step(0, "done", "Opened the renewal portal.");
-      await turn("system", "Opened the Springfield City Permits renewal portal.");
+
+      // Sign in + navigate to the renewal form via natural-language interact —
+      // the agent understands the page rather than following hard-coded
+      // selectors, which is how it would handle a real portal. Best-effort: if
+      // the page has no login/dashboard (older single-page target), these are
+      // harmless no-ops and the fill step still runs.
+      const user = process.env.DEMO_PORTAL_USER ?? "demo";
+      const pass = process.env.DEMO_PORTAL_PASS ?? "demo";
+      const login = await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: scraped.scrapeId,
+        prompt: `If this is a sign-in page, type "${user}" into the username field and "${pass}" into the password field, then click the Sign in button.`,
+      });
+      if (login.liveViewUrl) {
+        await ctx.runMutation(api.cases.setSession, { caseId, liveViewUrl: login.liveViewUrl });
+      }
+      await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: scraped.scrapeId,
+        prompt:
+          "If you are on a dashboard listing permits, click the Renew link on the Food Handler Permit row to open its renewal form.",
+      });
+      await step(0, "done", "Signed in and opened the renewal portal.");
+      await turn("system", "Signed in to Springfield City Permits and opened the Food Handler renewal.");
 
       // Step 1: read the form (we know the fields for the demo portal).
       await ctx.runMutation(api.cases.setState, { caseId, state: "reading_form" });
@@ -86,6 +106,11 @@ export const run = internalAction({
       if (mapping.missing.length > 0 && data.case.inboxId) {
         await ctx.runMutation(api.cases.setState, { caseId, state: "awaiting_info" });
         const missingList = mapping.missing.join(", ");
+        // Remember which field we're waiting on so the reply can be persisted.
+        await ctx.runMutation(internal.cases.setAwaitingField, {
+          caseId,
+          field: mapping.missing[0],
+        });
         await ctx.runAction(api.email.send, {
           inboxId: data.case.inboxId,
           to: business.ownerEmail,
@@ -134,6 +159,20 @@ export const handleReply = internalAction({
       direction: "inbound",
       summary: `Owner replied: "${replyText.slice(0, 120)}"`,
     });
+
+    // Persist the supplied value onto the business profile so submit uses the
+    // real answer instead of a hard-coded default.
+    const applied = await ctx.runMutation(internal.cases.applyOwnerAnswer, {
+      caseId,
+      value: replyText,
+    });
+    if (applied.field) {
+      await ctx.runMutation(api.cases.addTurn, {
+        caseId,
+        direction: "system",
+        summary: `Recorded ${applied.field} from the owner's reply.`,
+      });
+    }
 
     // Mark the request_info step done, then handle inspection booking if needed.
     await ctx.runMutation(api.cases.setStep, {
@@ -244,6 +283,18 @@ export const submit = internalAction({
     const data = await ctx.runQuery(api.cases.get, { caseId });
     if (!data?.case || !data.permit) return;
 
+    // SERVER-SIDE APPROVAL GATE: refuse to do anything real unless an approved
+    // submit_form action exists for this case. The client cannot bypass this.
+    const action = await ctx.runQuery(internal.cases.latestAction, { caseId });
+    if (!action || action.kind !== "submit_form" || action.status !== "approved") {
+      await ctx.runMutation(api.cases.addTurn, {
+        caseId,
+        direction: "system",
+        summary: "Submit blocked: no approved action for this case.",
+      });
+      return;
+    }
+
     await ctx.runMutation(api.cases.setState, { caseId, state: "submitting" });
     await ctx.runMutation(api.cases.setStep, { caseId, order: 6, status: "running" });
 
@@ -251,7 +302,8 @@ export const submit = internalAction({
     try {
       // Always start a FRESH Firecrawl session: the earlier one was stopped after
       // the missing-info email (sessions are ~10 min), so its scrapeId is dead.
-      // Re-scrape the portal and re-fill from the profile before submitting.
+      // Re-open the portal at its entry (login), sign in, navigate to the form,
+      // fill, step through the review page, and confirm.
       const site = process.env.CONVEX_SITE_URL ?? "";
       const scraped = await ctx.runAction(api.firecrawl.scrape, {
         url: `${site}${data.permit.portalUrl}`,
@@ -262,17 +314,45 @@ export const submit = internalAction({
           businessId: data.case.businessId,
         });
         const p = business?.profile ?? {};
-        // Fill, submit, and read the confirmation deterministically in one code
-        // run (proven reliable; prompt-driven submit is flakier).
         const esc = (s: string) => (s ?? "").replace(/'/g, "\\'");
+        const renewalTerm = p.renewalTerm && /^(1|2)-year$/.test(p.renewalTerm)
+          ? p.renewalTerm
+          : "2-year";
+        const user = process.env.DEMO_PORTAL_USER ?? "demo";
+        const pass = process.env.DEMO_PORTAL_PASS ?? "demo";
+
+        // PRIMARY: natural-language sign-in + navigation (adaptable, like a real
+        // site). Best-effort; the deterministic code run below is the fallback
+        // that guarantees the demo reaches a confirmation.
+        const nav = await ctx.runAction(api.firecrawl.interact, {
+          scrapeId: sid,
+          prompt: `If this is a sign-in page, sign in with username "${user}" and password "${pass}". Then, if you land on a dashboard, click the Renew link for the Food Handler Permit to open its renewal form.`,
+        });
+        if (nav.liveViewUrl) {
+          await ctx.runMutation(api.cases.setSession, { caseId, scrapeId: sid, liveViewUrl: nav.liveViewUrl });
+        }
+
+        // FALLBACK / deterministic completion: fill the form, continue to the
+        // review page, confirm, and read the confirmation number. Guarded so a
+        // missing element on any single page doesn't abort the whole run.
         const code =
+          `async function tryStep(fn){ try { return await fn(); } catch(e) { return null; } }` +
+          // In case NL sign-in didn't complete, fill + submit the login form if present.
+          `await tryStep(async()=>{ await page.fill('#username','${esc(user)}'); await page.fill('#password','${esc(pass)}'); await page.click('#signin-btn'); await page.waitForLoadState('networkidle'); });` +
+          // If on the dashboard, click the first Renew link to reach the form.
+          `await tryStep(async()=>{ await page.click('a.renew-link'); await page.waitForSelector('#legalName'); });` +
+          // Fill the renewal form.
+          `await page.waitForSelector('#legalName');` +
           `await page.fill('#legalName','${esc(p.legalName ?? "")}');` +
           `await page.fill('#address','${esc(p.address ?? "")}');` +
           `await page.fill('#contactName','${esc(p.contactName ?? "")}');` +
           `await page.fill('#priorPermitNo','${esc(p.priorFoodPermitNo ?? "")}');` +
-          `await page.selectOption('#renewalTerm','2-year');` +
+          `await page.selectOption('#renewalTerm','${esc(renewalTerm)}');` +
           `await page.check('#attest');` +
+          // Continue to the review page, then confirm & submit.
           `await page.click('#submit-btn');` +
+          `await page.waitForSelector('#confirm-btn');` +
+          `await page.click('#confirm-btn');` +
           `await page.waitForSelector('#conf-no');` +
           `const t = await page.$eval('#conf-no', e => e.textContent); JSON.stringify(t);`;
         const codeRes = await ctx.runAction(api.firecrawl.interactCode, { scrapeId: sid, code });
@@ -295,6 +375,11 @@ export const submit = internalAction({
         permitId: data.permit._id,
         status: "renewed",
         lastConfirmation: confirmation,
+      });
+      // Close out the approved action with its confirmation number.
+      await ctx.runMutation(internal.cases.markExecuted, {
+        actionId: action._id,
+        confirmation,
       });
       await ctx.runMutation(api.cases.addTurn, {
         caseId,
