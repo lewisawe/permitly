@@ -4,6 +4,7 @@ import { api, internal, components } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { permitStatus } from "./schema";
 import { RateLimiter, MINUTE } from "@convex-dev/rate-limiter";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 // Rate limit real, credit-costing renewal runs per business: a token bucket that
 // allows a small burst then refills slowly. Firecrawl /interact costs credits,
@@ -12,13 +13,28 @@ const rateLimiter = new RateLimiter(components.rateLimiter, {
   startRenewal: { kind: "token bucket", rate: 3, period: MINUTE, capacity: 2 },
 });
 
-// Board data: all permits for a business, with their active case (if any).
+// Board data: the caller's business (owner-scoped) with each permit's active
+// case. Falls back to the shared demo business so a first-time anonymous visitor
+// (a judge opening the live URL) always sees a populated board.
 export const board = query({
   args: { businessId: v.optional(v.id("businesses")) },
   handler: async (ctx, { businessId }) => {
-    const business = businessId
-      ? await ctx.db.get(businessId)
-      : (await ctx.db.query("businesses").take(1))[0];
+    const userId = await getAuthUserId(ctx);
+
+    let business = null;
+    if (businessId) {
+      business = await ctx.db.get(businessId);
+    } else if (userId) {
+      // The caller's own business, if they have one.
+      business = await ctx.db
+        .query("businesses")
+        .withIndex("by_owner_id", (q) => q.eq("ownerId", userId))
+        .first();
+    }
+    // Fallback: the shared demo business (no-account demo path).
+    if (!business) {
+      business = (await ctx.db.query("businesses").take(1))[0] ?? null;
+    }
     if (!business) return { business: null, permits: [] };
 
     // Permits per business are few (a business tracks ~5-15); bound anyway so we
@@ -85,6 +101,13 @@ export const setBooking = mutation({
 export const startRenewal = mutation({
   args: { permitId: v.id("permits") },
   handler: async (ctx, { permitId }): Promise<Id<"cases">> => {
+    // Require an identity: the server resolves the caller (no anonymous writes
+    // without a session). Anonymous auth issues this on page load.
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new ConvexError("Please wait a moment and try again (signing you in).");
+    }
+
     // Rate-limit renewal runs per business (real Firecrawl web actions cost
     // credits). Keyed by the permit's business; throws a ConvexError the client
     // can surface if the limit is exceeded.

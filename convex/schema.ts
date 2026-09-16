@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
 
 // Permitly schema. See SPEC.md section 5 and section 6 (state machine).
 
@@ -49,12 +50,18 @@ export const stepStatus = v.union(
 );
 
 export default defineSchema({
+  // Convex Auth tables (users, auth sessions/accounts, etc.).
+  ...authTables,
+
   businesses: defineTable({
     name: v.string(),
     ownerEmail: v.string(),
     // Free-form profile values used to fill permit forms (address, contact, ids).
     profile: v.record(v.string(), v.string()),
-  }).index("by_owner", ["ownerEmail"]),
+    // The auth user id that owns this business (anonymous or otherwise). Optional
+    // so the seeded demo business can be shared/owned by a demo identity.
+    ownerId: v.optional(v.id("users")),
+  }).index("by_owner", ["ownerEmail"]).index("by_owner_id", ["ownerId"]),
 
   permits: defineTable({
     businessId: v.id("businesses"),

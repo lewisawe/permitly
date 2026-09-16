@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Building2 } from "lucide-react";
 import { useQuery } from "convex/react";
+import { useConvexAuth } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { Board } from "./components/Board";
@@ -20,6 +22,17 @@ function useHashRoute() {
 
 function App() {
   const hash = useHashRoute();
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { signIn } = useAuthActions();
+
+  // Anonymous sign-in on load: every visitor gets an identity (no account
+  // needed), so judges can open the live URL and still get owner-scoped data.
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      void signIn("anonymous");
+    }
+  }, [isLoading, isAuthenticated, signIn]);
+
   const board = useQuery(api.permits.board, {});
   const business = board?.business;
 

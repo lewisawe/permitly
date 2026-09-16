@@ -3,8 +3,12 @@ import { httpAction } from "./_generated/server";
 import { internal, components, api } from "./_generated/api";
 import { registerStaticRoutes } from "@convex-dev/static-hosting";
 import { FOOD_HANDLER_PORTAL, BOOKING_PORTAL, LOGIN_PORTAL, DASHBOARD_PORTAL, REVIEW_PORTAL } from "./portalHtml";
+import { auth } from "./auth";
 
 const http = httpRouter();
+
+// Convex Auth HTTP routes (token issuance/verification for anonymous sign-in).
+auth.addHttpRoutes(http);
 
 // Verify a Svix-signed webhook (AgentMail uses Svix). The signed content is
 // `${id}.${timestamp}.${body}`; the secret is base64 after the "whsec_" prefix;

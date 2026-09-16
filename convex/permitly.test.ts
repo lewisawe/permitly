@@ -216,17 +216,24 @@ describe("deadline watch", () => {
   });
 });
 
-describe("rate limiting", () => {
+describe("auth + rate limiting", () => {
+  test("startRenewal refuses without an identity", async () => {
+    const t = convexTest(schema, modules);
+    const { permitId } = await seedPermit(t);
+    await expect(t.mutation(api.permits.startRenewal, { permitId })).rejects.toThrow();
+  });
+
   test("startRenewal throws once the per-business burst is exceeded", async () => {
     const t = convexTest(schema, modules);
     const { permitId } = await seedPermit(t);
-    // Bucket: capacity 2. The first calls succeed; a rapid burst eventually trips
-    // the limit and throws (a ConvexError the client surfaces). We don't finish
-    // scheduled functions here (the runner is a Node action needing network).
+    // Authenticated caller (anonymous identity). Bucket capacity 2; a rapid burst
+    // trips the limit and throws. We don't finish scheduled functions here (the
+    // runner is a Node action needing network).
+    const asUser = t.withIdentity({ subject: "test-user|123", issuer: "test" });
     let threw = false;
     for (let i = 0; i < 6; i++) {
       try {
-        await t.mutation(api.permits.startRenewal, { permitId });
+        await asUser.mutation(api.permits.startRenewal, { permitId });
       } catch {
         threw = true;
         break;

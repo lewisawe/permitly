@@ -70,6 +70,13 @@ as extra real features.
 
 ## Status
 - [ ] 1. Plan (this doc)
+
+## Revert point (before the risky auth work)
+Last-known-good commit with items A–C green and demo-parity:
+**`063303a`** — "feat: surface real-time updates with a Live indicator on the board".
+If Convex Auth (item D) destabilizes the verified demo:
+`git reset --hard 063303a && npm install`, then redeploy. A–C are preserved.
+
 - [ ] A. Rate Limiter component
 - [ ] B. File-storage receipts
 - [ ] C. Live updates surfaced/verified
