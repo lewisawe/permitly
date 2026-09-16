@@ -101,6 +101,9 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
   return (
     <>
       <section className="kpis" aria-label="Summary">
+        <div className="kpis-live" aria-hidden="true">
+          <span className="live-dot" /> Live
+        </div>
         <Kpi icon={<FileCheck2 size={20} />} value={permits.length} label="Permits tracked" />
         <Kpi icon={<AlarmClock size={20} />} value={dueSoon} label="Due soon / overdue" />
         <Kpi icon={<BellRing size={20} />} value={needsYou} label="Needs you" />
