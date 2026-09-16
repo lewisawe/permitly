@@ -61,7 +61,7 @@ async function buildReceiptPdf(r: {
     x: left, y, size: 10, font: sans, color: steel,
   });
   page.drawText("compliance on autopilot.", { x: left, y: y - 14, size: 10, font: sans, color: steel });
-  page.drawText("DEMO — Springfield City Permits is a controlled mock portal.", {
+  page.drawText(`DEMO — ${r.agency} is a controlled mock portal.`, {
     x: left, y: 56, size: 8, font: sans, color: rgb(0.6, 0.6, 0.6),
   });
 
@@ -430,6 +430,7 @@ export const submit = internalAction({
     await ctx.runMutation(api.cases.setStep, { caseId, order: 6, status: "running" });
 
     let confirmation = "";
+    let confirmedReal = false;
     try {
       // Always start a FRESH Firecrawl session: the earlier one was stopped after
       // the missing-info email (sessions are ~10 min), so its scrapeId is dead.
@@ -504,6 +505,7 @@ export const submit = internalAction({
         const prefix = prefixMap[slug] ?? "PMT";
         // Accept any of the type prefixes the portal can render.
         const m = out.match(/(FH|BL|FS|SP|PMT)-2026-\d{6}/);
+        confirmedReal = !!m;
         confirmation = m ? m[0] : `${prefix}-2026-${Math.floor(100000 + Math.random() * 899999)}`;
         await ctx.runAction(api.firecrawl.stopInteract, { scrapeId: sid });
       } else {
@@ -511,7 +513,10 @@ export const submit = internalAction({
       }
 
       await ctx.runMutation(api.cases.setStep, { caseId, order: 5, status: "done", result: "Owner approved." });
-      await ctx.runMutation(api.cases.setStep, { caseId, order: 6, status: "done", result: `Submitted. Confirmation ${confirmation}.` });
+      const submitResult = confirmedReal
+        ? `Submitted. Confirmation ${confirmation}.`
+        : `Submitted, but couldn't read a confirmation from the page; recorded a provisional number (${confirmation}).`;
+      await ctx.runMutation(api.cases.setStep, { caseId, order: 6, status: "done", result: submitResult });
       await ctx.runMutation(api.cases.setStep, { caseId, order: 7, status: "done", result: `Recorded confirmation ${confirmation}.` });
       await ctx.runMutation(api.cases.setState, { caseId, state: "done" });
       await ctx.runMutation(api.permits.setStatus, {
@@ -551,7 +556,9 @@ export const submit = internalAction({
       await ctx.runMutation(api.cases.addTurn, {
         caseId,
         direction: "system",
-        summary: `Submitted. Confirmation number ${confirmation}. Permit renewed.`,
+        summary: confirmedReal
+          ? `Submitted. Confirmation number ${confirmation}. Permit renewed.`
+          : `Submitted. Couldn't read a confirmation from the page; recorded provisional ${confirmation}.`,
       });
 
       // Tell the owner it's done.
