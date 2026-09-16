@@ -127,6 +127,8 @@ export default defineSchema({
     ),
     approvedBy: v.optional(v.string()),
     confirmation: v.optional(v.string()),
+    // Stored confirmation receipt file (Convex file storage).
+    receiptFileId: v.optional(v.id("_storage")),
   })
     .index("by_case", ["caseId"])
     .index("by_status", ["status"]),

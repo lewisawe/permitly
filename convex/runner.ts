@@ -2,6 +2,7 @@
 import { internalAction } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 
 // The case runner: drives a renewal case through its automated steps up to the
 // human approval gate. Ties together Firecrawl (scrape + interact), the LLM
@@ -376,10 +377,37 @@ export const submit = internalAction({
         status: "renewed",
         lastConfirmation: confirmation,
       });
-      // Close out the approved action with its confirmation number.
+      // Store a confirmation receipt as a file (Convex file storage) so the
+      // owner can download proof of the renewal.
+      let receiptFileId: Id<"_storage"> | undefined;
+      try {
+        const now = new Date().toISOString();
+        const business = await ctx.runQuery(internal.cases.getBusiness, {
+          businessId: data.case.businessId,
+        });
+        const receipt =
+          `PERMITLY — RENEWAL RECEIPT\n` +
+          `============================\n\n` +
+          `Business:      ${business?.name ?? "—"}\n` +
+          `Permit:        ${data.permit.type}\n` +
+          `Agency:        ${data.permit.agency}\n` +
+          `Confirmation:  ${confirmation}\n` +
+          (data.permit.bookingReference
+            ? `Inspection:    ${data.permit.bookingReference}\n`
+            : "") +
+          `Submitted:     ${now}\n\n` +
+          `Keep this receipt for your records.\n`;
+        const blob = new Blob([receipt], { type: "text/plain" });
+        receiptFileId = await ctx.storage.store(blob);
+      } catch {
+        // Receipt is a nice-to-have; never fail the renewal over it.
+      }
+
+      // Close out the approved action with its confirmation number + receipt.
       await ctx.runMutation(internal.cases.markExecuted, {
         actionId: action._id,
         confirmation,
+        ...(receiptFileId ? { receiptFileId } : {}),
       });
       await ctx.runMutation(api.cases.addTurn, {
         caseId,

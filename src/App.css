@@ -611,3 +611,23 @@
   font-size: 15px;
   font-weight: 500;
 }
+/* Receipt bar: shown on a completed case with a downloadable stored receipt. */
+.receipt-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  background: var(--color-paper);
+  border: 1px solid var(--color-carbon);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-hard);
+  margin-bottom: 20px;
+}
+.receipt-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+}

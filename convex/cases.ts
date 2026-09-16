@@ -253,11 +253,34 @@ export const latestAction = internalQuery({
   },
 });
 
-// Internal: mark an action executed with its confirmation number.
+// Internal: mark an action executed with its confirmation number + receipt file.
 export const markExecuted = internalMutation({
-  args: { actionId: v.id("actions"), confirmation: v.string() },
-  handler: async (ctx, { actionId, confirmation }) => {
-    await ctx.db.patch(actionId, { status: "executed", confirmation });
+  args: {
+    actionId: v.id("actions"),
+    confirmation: v.string(),
+    receiptFileId: v.optional(v.id("_storage")),
+  },
+  handler: async (ctx, { actionId, confirmation, receiptFileId }) => {
+    await ctx.db.patch(actionId, {
+      status: "executed",
+      confirmation,
+      ...(receiptFileId ? { receiptFileId } : {}),
+    });
+  },
+});
+
+// Public: the download URL for a case's stored confirmation receipt (if any).
+// Reactive — the button appears as soon as the receipt is stored.
+export const receiptUrl = query({
+  args: { caseId: v.id("cases") },
+  handler: async (ctx, { caseId }) => {
+    const action = await ctx.db
+      .query("actions")
+      .withIndex("by_case", (q) => q.eq("caseId", caseId))
+      .order("desc")
+      .first();
+    if (!action?.receiptFileId) return null;
+    return await ctx.storage.getUrl(action.receiptFileId);
   },
 });
 

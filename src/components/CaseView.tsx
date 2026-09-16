@@ -12,6 +12,7 @@ import {
   Bot,
   Info,
   ShieldCheck,
+  Download,
 } from "lucide-react";
 
 const STEP_ICON: Record<string, React.ReactNode> = {
@@ -35,6 +36,7 @@ export function CaseView({
   onBack: () => void;
 }) {
   const data = useQuery(api.cases.get, { caseId });
+  const receiptUrl = useQuery(api.cases.receiptUrl, { caseId });
   const approve = useMutation(api.cases.approve);
 
   if (data === undefined) {
@@ -91,6 +93,24 @@ export function CaseView({
           >
             Approve &amp; submit
           </button>
+        </div>
+      )}
+
+      {c.state === "done" && receiptUrl && (
+        <div className="receipt-bar">
+          <span className="receipt-text">
+            <ShieldCheck size={16} aria-hidden="true" /> Renewal complete
+            {permit?.lastConfirmation ? ` — ${permit.lastConfirmation}` : ""}
+          </span>
+          <a
+            className="btn btn-outline btn-sm"
+            href={receiptUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            download
+          >
+            <Download size={15} aria-hidden="true" /> Download receipt
+          </a>
         </div>
       )}
 
