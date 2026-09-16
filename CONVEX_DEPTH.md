@@ -71,7 +71,7 @@ as extra real features.
 ## Status
 - [x] 1. Plan (this doc)
 - [x] A. Rate Limiter component (per-business startRenewal token bucket)
-- [x] B. File-storage receipts (stored receipt + download button)
+- [x] B. File-storage receipts (real PDF via pdf-lib + download button)
 - [x] C. Live updates surfaced/verified (reactive useQuery, Live indicator)
 - [x] D. Anonymous auth + owner-scoping (Convex Auth, demo fallback preserved)
 - [~] E. Verify + deploy + docs (deployed to prod + board verified live;

@@ -36,8 +36,12 @@ Board "Renew" (or an inbound email)
   -> approval gate: AgentMail emails a summary; owner replies "approve"
      (or clicks Approve on the board) — enforced server-side
   -> Firecrawl: submit through the review page; read the confirmation number
-  -> permit marked renewed; owner emailed the confirmation
+  -> a PDF receipt is generated (pdf-lib) and stored; permit marked renewed;
+     owner emailed the confirmation
 ```
+
+Every tracked permit renews through the same multi-page portal (the mock portal
+is parameterized by permit type); Food Handler also books an inspection.
 
 ## The four sponsors (each does real work)
 
@@ -76,12 +80,14 @@ Board "Renew" (or an inbound email)
 ## The demo portal
 
 The target is a realistic, controlled mock of "Springfield City Permits" served
-from the same Convex site (`/demo-portal/login` → `/dashboard` → `/food-handler`
-→ `/review`, plus a `/booking` page), clearly labeled DEMO. The Firecrawl /
-AgentMail / Bedrock calls are all real; only the portal is controlled, so the
-demo doesn't flake on CAPTCHA/MFA. This mirrors how the strongest prior
-hackathon entries demoed. Permitly does **not** claim to work on any arbitrary
-government site — real portals add CAPTCHA, MFA, and anti-bot measures — but the
+from the same Convex site (`/demo-portal/login` → `/dashboard` → the renewal form
+→ `/review`, plus a `/booking` page), clearly labeled DEMO. The form and review
+pages are parameterized by permit type (`?permit=<slug>`), so every permit renews
+through the same wizard. The Firecrawl / AgentMail / Bedrock calls are all real;
+only the portal is controlled, so the demo doesn't flake on CAPTCHA/MFA. This
+mirrors how the strongest prior hackathon entries demoed. Permitly does **not**
+claim to work on any arbitrary government site — real portals add CAPTCHA, MFA,
+and anti-bot measures — but the
 automation (sign-in, navigation, form-fill, submit) is genuine and adaptable.
 
 ## Tech stack
@@ -155,4 +161,5 @@ npx convex run --prod seed:resetCases # clear cases only, keep permits
 - [`IMPROVEMENTS.md`](./IMPROVEMENTS.md) — pre-submission hardening audit + fixes
 - [`DEMO_ENHANCEMENTS.md`](./DEMO_ENHANCEMENTS.md) — visual + multi-page portal plan
 - [`CONVEX_DEPTH.md`](./CONVEX_DEPTH.md) — Convex depth additions (components, file storage, auth)
+- [`POLISH.md`](./POLISH.md) — product-polish pass (landing, states, chrome)
 - [`DESIGN.md`](./DESIGN.md) — how the design system maps into the app

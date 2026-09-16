@@ -12,7 +12,7 @@
 - **Auth:** anonymous (Convex Auth `@convex-dev/auth`, Anonymous provider); data is owner-scoped, with a shared demo business fallback so judges open the live URL without an account
 - **AI models:** amazon.nova-lite-v1:0 (AWS Bedrock, via Converse)
 - **Started:** 2026-09-14T19:05:24Z
-- **Last updated:** 2026-09-16T23:52:00Z
+- **Last updated:** 2026-09-17T01:12:00Z
 
 ## Log
 
@@ -223,3 +223,29 @@ scheduler, cron, file storage, real-time reactive queries, anonymous auth with
 owner-scoping, and two official components (static-hosting + rate-limiter).
 Verified: `npm run build`, `npm run lint` (0/0), `npm test` (13 tests) green;
 prod board loads under anonymous auth; auth discovery endpoints live.
+
+### 2026-09-17 - working tree — all permits renewable + real PDF receipts
+
+Made the whole board functional and upgraded the receipt to a real document.
+
+- **Every permit renews end to end**, not just Food Handler. The mock portal is
+  now parameterized by permit type (`?permit=<slug>`): the dashboard lists all
+  four with type-specific Renew links, and the form + review page adapt their
+  title, badge, attestation and confirmation prefix (FH/BL/FS/SP). The runner
+  navigates to the right permit's Renew link (natural-language + a
+  selector-by-slug fallback). Food Handler keeps the inspection-booking step; the
+  others skip it. `permits.portalSlug` added to the schema; the seed points all
+  four at the login flow.
+- **Real PDF receipt**: on submit, `pdf-lib` generates a styled one-page A4
+  receipt (business, permit, agency, confirmation number, inspection reference,
+  timestamp, DEMO note), stored in Convex file storage as `application/pdf`. The
+  "Download receipt" button now yields a genuine PDF instead of plain text.
+  pdf-lib runs server-side in the `"use node"` action; the client bundle is
+  unchanged.
+
+Deployed to prod and reseeded (schema + seed changed). Verified: all four permits
+present with slugs and correct statuses, every parameterized portal page returns
+200, the auth guard refuses unauthenticated renewals. `npm run build`,
+`npm run lint` (0/0), `npm test` (13) green. Product-polish pass (landing page,
+toast, skeletons, framing, micro-interactions, mobile) also shipped — see
+`POLISH.md`.

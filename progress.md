@@ -32,8 +32,11 @@ approval), made the mock portal a realistic multi-page flow driven by
 natural-language navigation, and deepened Convex usage: the Rate Limiter
 component (per-business renewal cap), file-storage receipts with a download
 button, and anonymous Convex Auth with owner-scoping (server resolves the caller;
-shared demo fallback keeps the no-account path). See `hackathon.md`,
-`IMPROVEMENTS.md`, `DEMO_ENHANCEMENTS.md`, and `CONVEX_DEPTH.md`.
+shared demo fallback keeps the no-account path). Then made every permit renewable
+through a portal parameterized by permit type (not just Food Handler), upgraded
+the receipt to a real PDF (pdf-lib), and ran a full product-polish pass (landing
+page, toast, skeletons, framing, micro-interactions, mobile). See `hackathon.md`,
+`IMPROVEMENTS.md`, `DEMO_ENHANCEMENTS.md`, `CONVEX_DEPTH.md`, and `POLISH.md`.
 
 Remaining: record the <3-min demo video, push a public repo, and submit at
 vibeapps.dev with the AllGasHackathon tag.
