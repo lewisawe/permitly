@@ -144,7 +144,7 @@ Not automated here because prod deploy needs interactive confirmation.
 - [x] 1. Reply routing + email-approve + persist supplied field
 - [x] 2. Svix signature verification
 - [x] 3. Submit-time payload re-validation
-- [x] 4. convex-test suite (11 tests, `npm test`)
+- [x] 4. convex-test suite (13 tests, `npm test`)
 - [x] 5. Board query bounding
 - [x] 6. Deadline cron
 - [x] 7. hackathon.md component note
@@ -153,3 +153,31 @@ Not automated here because prod deploy needs interactive confirmation.
 
 Remaining is owner-run only: production deploy + set env vars + seed + register
 webhook + record video + submit (see checklist above).
+
+## Second review pass (2026-09-17) — sub-agent code review + fixes
+
+A full read-only code review (sub-agent, verified by hand) found and we fixed:
+
+- **[HIGH] Field-name mismatch** — the seed profile used `priorFoodPermitNo` but
+  the form fields + submit used `priorPermitNo`, so the agent would email the
+  owner for a value it already had. Standardized on `priorPermitNo`.
+- **[HIGH] No-missing-info approval dead-end** — when a permit's profile was
+  complete, `runner.run` set `awaiting_approval` but never proposed the submit
+  action, so the Approve button never rendered and the submit gate could never
+  pass. It now books the inspection (if required), proposes the action, sets the
+  approval step running, and emails for approval — mirroring the reply path.
+- **[MED] Honest submit** — on a failed confirmation read, the timeline/steps no
+  longer claim a real renewal; they record a provisional number and say so.
+- **[LOW] Receipt footer** — uses the permit's own agency, not a hard-coded city.
+- **Cleanup** — removed dead code/files/CSS: `health.ts`, `llm.ping`,
+  `permits.add`, `email.createInbox/listInboxes`, `src/assets/`, the stale
+  `public/demo-portal/food-handler.html`, the vestigial `cases.currentStepId`,
+  and dead CSS (`.status-line`, `.live-view-placeholder`, `--radius-sm`,
+  `--shadow-float`). Kept `seed.reseed/resetCases` (demo resets) and the harmless
+  unused enum literals.
+
+The review confirmed the fundamentals were already sound: consistent 8-step plan
+ordering across `cases.PLAN`/`runner`, full status-enum coverage in `lib/status`
+and `CaseView` `LIVE_MESSAGE`, and solid security (Svix verification, server-side
+approval gate, rate limiting). Deployed to prod + reseeded; build/lint/13 tests
+green.

@@ -12,7 +12,7 @@
 - **Auth:** anonymous (Convex Auth `@convex-dev/auth`, Anonymous provider); data is owner-scoped, with a shared demo business fallback so judges open the live URL without an account
 - **AI models:** amazon.nova-lite-v1:0 (AWS Bedrock, via Converse)
 - **Started:** 2026-09-14T19:05:24Z
-- **Last updated:** 2026-09-17T01:12:00Z
+- **Last updated:** 2026-09-17T01:33:00Z
 
 ## Log
 
@@ -249,3 +249,27 @@ present with slugs and correct statuses, every parameterized portal page returns
 `npm run lint` (0/0), `npm test` (13) green. Product-polish pass (landing page,
 toast, skeletons, framing, micro-interactions, mobile) also shipped — see
 `POLISH.md`.
+
+### 2026-09-17 - working tree — code-review pass (bug fixes + cleanup)
+
+Ran a full read-only code review (sub-agent, verified by hand) and fixed what it
+found. Details in `IMPROVEMENTS.md` ("Second review pass").
+
+- **Two HIGH functional bugs.** (1) The seed profile key (`priorFoodPermitNo`)
+  didn't match the form field (`priorPermitNo`), so the agent asked the owner for
+  a value it already had — standardized on `priorPermitNo`. (2) When a permit's
+  profile was complete, the runner reached the approval state without proposing
+  the submit action, so the Approve button never appeared and submit could never
+  proceed; the no-missing-info path now books the inspection, proposes the action,
+  and emails for approval like the reply path does.
+- **Honest failure.** If the submit can't read a real confirmation from the page,
+  the timeline records a provisional number and says so instead of claiming a real
+  renewal.
+- **Receipt footer** uses the permit's own agency.
+- **Cleanup.** Removed dead functions/files/CSS and a vestigial schema field
+  (`cases.currentStepId`); the repo surface is tighter.
+
+The review confirmed the fundamentals were sound (consistent step-plan ordering,
+full status-enum coverage, Svix verification + server-side approval gate + rate
+limiting). Deployed to prod, reseeded (schema changed), verified the board and the
+corrected profile key. `npm run build`, `npm run lint` (0/0), `npm test` (13) green.
