@@ -3,6 +3,70 @@ import { internalAction } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+
+// Build a styled one-page PDF renewal receipt (Timescale-ish: near-mono with a
+// signal-orange accent rule). Returns the PDF bytes.
+async function buildReceiptPdf(r: {
+  business: string;
+  permit: string;
+  agency: string;
+  confirmation: string;
+  inspection?: string;
+  submittedAt: Date;
+}): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([595, 842]); // A4 portrait (pt)
+  const sans = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const mono = await doc.embedFont(StandardFonts.Courier);
+  const ink = rgb(0.1, 0.1, 0.1);
+  const steel = rgb(0.42, 0.42, 0.42);
+  const orange = rgb(1, 0.357, 0.161); // #ff5b29
+  const left = 56;
+  let y = 786;
+
+  page.drawText("PERMITLY", { x: left, y, size: 22, font: bold, color: ink });
+  page.drawText("Renewal receipt", { x: left, y: y - 22, size: 12, font: sans, color: steel });
+  y -= 44;
+  page.drawRectangle({ x: left, y, width: 483, height: 3, color: orange });
+  y -= 40;
+
+  const rows: Array<[string, string]> = [
+    ["Business", r.business],
+    ["Permit", r.permit],
+    ["Agency", r.agency],
+    ["Confirmation number", r.confirmation],
+    ...(r.inspection ? ([["Inspection reference", r.inspection]] as Array<[string, string]>) : []),
+    ["Submitted", r.submittedAt.toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" })],
+    ["Status", "Renewed"],
+  ];
+  for (const [k, val] of rows) {
+    page.drawText(k.toUpperCase(), { x: left, y, size: 9, font: sans, color: steel });
+    const isConf = k === "Confirmation number";
+    page.drawText(val, {
+      x: left,
+      y: y - 16,
+      size: isConf ? 15 : 13,
+      font: isConf ? mono : bold,
+      color: isConf ? orange : ink,
+    });
+    y -= 46;
+  }
+
+  y -= 8;
+  page.drawRectangle({ x: left, y, width: 483, height: 1, color: rgb(0.8, 0.8, 0.8) });
+  y -= 24;
+  page.drawText("Keep this receipt for your records. Renewed via Permitly —", {
+    x: left, y, size: 10, font: sans, color: steel,
+  });
+  page.drawText("compliance on autopilot.", { x: left, y: y - 14, size: 10, font: sans, color: steel });
+  page.drawText("DEMO — Springfield City Permits is a controlled mock portal.", {
+    x: left, y: 56, size: 8, font: sans, color: rgb(0.6, 0.6, 0.6),
+  });
+
+  return await doc.save();
+}
 
 // The case runner: drives a renewal case through its automated steps up to the
 // human approval gate. Ties together Firecrawl (scrape + interact), the LLM
@@ -390,26 +454,23 @@ export const submit = internalAction({
         lastConfirmation: confirmation,
       });
       // Store a confirmation receipt as a file (Convex file storage) so the
-      // owner can download proof of the renewal.
+      // owner can download proof of the renewal (a real PDF via pdf-lib).
       let receiptFileId: Id<"_storage"> | undefined;
       try {
-        const now = new Date().toISOString();
         const business = await ctx.runQuery(internal.cases.getBusiness, {
           businessId: data.case.businessId,
         });
-        const receipt =
-          `PERMITLY — RENEWAL RECEIPT\n` +
-          `============================\n\n` +
-          `Business:      ${business?.name ?? "—"}\n` +
-          `Permit:        ${data.permit.type}\n` +
-          `Agency:        ${data.permit.agency}\n` +
-          `Confirmation:  ${confirmation}\n` +
-          (data.permit.bookingReference
-            ? `Inspection:    ${data.permit.bookingReference}\n`
-            : "") +
-          `Submitted:     ${now}\n\n` +
-          `Keep this receipt for your records.\n`;
-        const blob = new Blob([receipt], { type: "text/plain" });
+        const pdfBytes = await buildReceiptPdf({
+          business: business?.name ?? "—",
+          permit: data.permit.type,
+          agency: data.permit.agency,
+          confirmation,
+          inspection: data.permit.bookingReference,
+          submittedAt: new Date(),
+        });
+        // Copy into a fresh Uint8Array so the Blob part is a plain ArrayBuffer.
+        const bytes = new Uint8Array(pdfBytes);
+        const blob = new Blob([bytes], { type: "application/pdf" });
         receiptFileId = await ctx.storage.store(blob);
       } catch {
         // Receipt is a nice-to-have; never fail the renewal over it.
