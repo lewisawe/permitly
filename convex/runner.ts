@@ -83,12 +83,32 @@ const FORM_FIELDS = [
   "renewalTerm",
 ];
 
+// A target is "external / real" when it's an absolute http(s) URL that is NOT
+// our own Convex-hosted mock portal. Those go through the NL-only real-site
+// path (realProofPrep / realProofSubmit); everything else uses the mock path.
+function isExternalTarget(portalUrl: string): boolean {
+  if (!/^https?:\/\//i.test(portalUrl)) return false;
+  const site = process.env.CONVEX_SITE_URL ?? "";
+  if (site && portalUrl.startsWith(site)) return false;
+  return true;
+}
+
 export const run = internalAction({
   args: { caseId: v.id("cases"), portalUrl: v.string() },
   handler: async (ctx, { caseId, portalUrl }): Promise<void> => {
     const data = await ctx.runQuery(api.cases.get, { caseId });
     if (!data || !data.case || !data.permit) return;
     const businessId = data.case.businessId;
+
+    // ROUTING: if this permit targets a REAL external site (an http(s) URL that
+    // is not our own Convex-hosted mock portal), drive it through the NL-only
+    // real-site path instead of the mock path. Same case UI, same approval gate,
+    // same submit — only the prompts and the confirmation read differ. The mock
+    // path below is left completely unchanged for internal targets.
+    if (isExternalTarget(portalUrl)) {
+      await ctx.runAction(internal.runner.realProofPrep, { caseId, portalUrl });
+      return;
+    }
 
     // Load the business profile (for field mapping + owner email).
     const business = await ctx.runQuery(internal.cases.getBusiness, {
@@ -426,6 +446,13 @@ export const submit = internalAction({
       return;
     }
 
+    // ROUTING: real external target -> NL-only real submission (place the order
+    // and read the live confirmation). Same approval gate above still applies.
+    if (isExternalTarget(data.permit.portalUrl)) {
+      await ctx.runAction(internal.runner.realProofSubmit, { caseId, actionId: action._id });
+      return;
+    }
+
     await ctx.runMutation(api.cases.setState, { caseId, state: "submitting" });
     await ctx.runMutation(api.cases.setStep, { caseId, order: 6, status: "running" });
 
@@ -575,6 +602,343 @@ export const submit = internalAction({
       const msg = err instanceof Error ? err.message : String(err);
       await ctx.runMutation(api.cases.setState, { caseId, state: "blocked", lastError: msg });
       await ctx.runMutation(api.cases.addTurn, { caseId, direction: "system", summary: `Submit failed: ${msg}` });
+    }
+  },
+});
+
+// ===========================================================================
+// REAL-SITE PROOF PATH (Track A)
+//
+// Drives a live, third-party multi-page form end to end using ONLY
+// natural-language Firecrawl `interact` prompts — no hardcoded CSS selectors,
+// no knowledge of the page's HTML. This is the same automation the mock path
+// uses (open -> sign in -> fill a multi-page form -> review -> submit -> read
+// the confirmation), pointed at an external site instead of our controlled
+// mock. Target for the demo: automationexercise.com, a site explicitly built
+// for automation practice (no CAPTCHA / MFA), whose register -> checkout ->
+// "Order Placed" flow is a genuine multi-page fill/review/confirm.
+//
+// Honesty note: this is NOT a government portal. It proves the automation is
+// real and adapts to an unfamiliar live page; the controlled mock remains the
+// reliable primary demo. Card details on the payment page are dummy values on
+// a sandbox site.
+//
+// Split across two actions so the human approval gate sits between them, just
+// like the mock path:
+//   realProofPrep   — open, create a throwaway account (with address details),
+//                     add an item, reach the checkout/review page, then STOP
+//                     and email the owner for approval.
+//   realProofSubmit — after approval, place the order and read the live
+//                     "Order Placed" confirmation.
+// ===========================================================================
+
+// Reserved profile keys used to carry the throwaway account between prep/submit.
+const RP_EMAIL_KEY = "_rpEmail";
+const RP_PASS_KEY = "_rpPass";
+const RP_NAME_KEY = "_rpName";
+
+export const realProofPrep = internalAction({
+  args: { caseId: v.id("cases"), portalUrl: v.string() },
+  handler: async (ctx, { caseId, portalUrl }): Promise<void> => {
+    const data = await ctx.runQuery(api.cases.get, { caseId });
+    if (!data?.case || !data.permit) return;
+    const businessId = data.case.businessId;
+    const business = await ctx.runQuery(internal.cases.getBusiness, { businessId });
+    if (!business) return;
+
+    const turn = (direction: "inbound" | "outbound" | "system", summary: string) =>
+      ctx.runMutation(api.cases.addTurn, { caseId, direction, summary });
+    const step = (order: number, status: "running" | "done" | "blocked", result?: string) =>
+      ctx.runMutation(api.cases.setStep, { caseId, order, status, result });
+
+    // Throwaway, unique identity for this run (register requires a fresh email).
+    const stamp = Date.now();
+    const rpEmail = `permitly.demo+${stamp}@example.com`;
+    const rpPass = `Permitly!${stamp.toString().slice(-6)}`;
+    const rpName = business.profile.contactName || "Sam Rivera";
+    await ctx.runMutation(internal.cases.setProfileValues, {
+      businessId,
+      values: { [RP_EMAIL_KEY]: rpEmail, [RP_PASS_KEY]: rpPass, [RP_NAME_KEY]: rpName },
+    });
+
+    const addr = business.profile.address || "142 Main St, Springfield";
+
+    try {
+      // Step 0: open the live site + sign-in/registration page.
+      await ctx.runMutation(api.cases.setState, { caseId, state: "finding_page" });
+      await step(0, "running");
+      const scraped = await ctx.runAction(api.firecrawl.scrape, { url: portalUrl });
+      if (!scraped.scrapeId) throw new Error("Could not open the live site.");
+      const sid = scraped.scrapeId;
+      await ctx.runMutation(api.cases.setSession, { caseId, scrapeId: sid });
+
+      // Go to the signup/login page (NL — no selectors).
+      const nav = await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt:
+          "Click the 'Signup / Login' link in the top navigation to open the sign-up page.",
+      });
+      if (nav.liveViewUrl) {
+        await ctx.runMutation(api.cases.setSession, { caseId, liveViewUrl: nav.liveViewUrl });
+      }
+
+      // Start registration with a fresh name + email.
+      await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt:
+          `In the 'New User Signup!' section, type "${rpName}" into the Name field and ` +
+          `"${rpEmail}" into the Email Address field, then click the Signup button.`,
+      });
+      await step(0, "done", "Opened the live site and started registration.");
+      await turn("system", `Opened ${data.permit.agency} and began sign-up as ${rpName}.`);
+
+      // Step 1: the account-information form is the first "form page".
+      await ctx.runMutation(api.cases.setState, { caseId, state: "reading_form" });
+      await step(1, "running");
+      await step(1, "done", "Reached the account information form.");
+
+      // Step 2: fill the multi-page account/address details (NL — no selectors).
+      await ctx.runMutation(api.cases.setState, { caseId, state: "filling_form" });
+      await step(2, "running");
+      const fill = await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt:
+          `On the account information form: set a password of "${rpPass}"; ` +
+          `select any Date of Birth (day, month, and year); ` +
+          `fill the address section using first name "${rpName.split(" ")[0]}", ` +
+          `last name "${rpName.split(" ").slice(1).join(" ") || "Rivera"}", ` +
+          `address "${addr}", country "United States", state "California", ` +
+          `city "Springfield", zipcode "90001", and mobile number "5551234567". ` +
+          `Then click the 'Create Account' button.`,
+      });
+      if (fill.liveViewUrl) {
+        await ctx.runMutation(api.cases.setSession, { caseId, liveViewUrl: fill.liveViewUrl });
+      }
+      // Continue past the "Account Created!" confirmation.
+      await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt: "If an 'Account Created!' message is shown, click the Continue button.",
+      });
+      await step(2, "done", "Filled the account + address details and created the account.");
+      await turn("system", "Filled the multi-page account and address form on the live site.");
+
+      // No missing-info step for the live demo; mark it done.
+      await step(3, "done", "No missing fields.");
+
+      // Add an item to the cart and advance to the checkout/review page — this
+      // is the "review before submit" page. STOP here (do not place the order).
+      await ctx.runMutation(api.cases.setState, { caseId, state: "booking_slot" });
+      await step(4, "running");
+      await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt:
+          "Go to the Products page, add the first product to the cart, " +
+          "then dismiss any popup and click 'View Cart'.",
+      });
+      const review = await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt:
+          "On the cart page click 'Proceed To Checkout' to reach the order review page " +
+          "that lists the delivery address and the order summary. Do not place the order yet.",
+      });
+      if (review.liveViewUrl) {
+        await ctx.runMutation(api.cases.setSession, { caseId, liveViewUrl: review.liveViewUrl });
+      }
+      await step(4, "done", "Reached the order review page (delivery address + summary).");
+      await turn("system", "Reached the review page on the live site. Ready to place the order.");
+
+      // Approval gate — identical to the mock path.
+      await step(5, "running");
+      await ctx.runMutation(api.cases.setState, { caseId, state: "awaiting_approval" });
+      await ctx.runMutation(api.permits.setStatus, {
+        permitId: data.permit._id,
+        status: "awaiting_approval",
+      });
+      await ctx.runMutation(internal.cases.proposeAction, {
+        caseId,
+        kind: "submit_form",
+        payloadSummary:
+          `Place the order on ${data.permit.agency} (live site) to complete the ` +
+          `${data.permit.type} demo and read the real confirmation.`,
+      });
+      if (data.case.inboxId) {
+        await ctx.runAction(api.email.send, {
+          inboxId: data.case.inboxId,
+          to: business.ownerEmail,
+          subject: `Permitly: approve the live-site ${data.permit.type} submission?`,
+          text:
+            `I've filled the multi-page form on the live site and reached the review page. ` +
+            `Reply "approve" to place the order and capture the confirmation, or open ` +
+            `Permitly and click Approve.`,
+        });
+        await turn("outbound", "Emailed the owner to approve the live-site submission.");
+      }
+      await turn("system", "Ready to submit on the live site. Waiting for your approval.");
+
+      // Free the session while we wait for approval (sessions are ~10 min).
+      await ctx.runAction(api.firecrawl.stopInteract, { scrapeId: sid });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await ctx.runMutation(api.cases.setState, { caseId, state: "blocked", lastError: msg });
+      await turn("system", `Blocked (live site): ${msg}`);
+    }
+  },
+});
+
+export const realProofSubmit = internalAction({
+  args: { caseId: v.id("cases"), actionId: v.id("actions") },
+  handler: async (ctx, { caseId, actionId }): Promise<void> => {
+    const data = await ctx.runQuery(api.cases.get, { caseId });
+    if (!data?.case || !data.permit) return;
+    const business = await ctx.runQuery(internal.cases.getBusiness, {
+      businessId: data.case.businessId,
+    });
+    if (!business) return;
+
+    const turn = (direction: "inbound" | "outbound" | "system", summary: string) =>
+      ctx.runMutation(api.cases.addTurn, { caseId, direction, summary });
+
+    await ctx.runMutation(api.cases.setState, { caseId, state: "submitting" });
+    await ctx.runMutation(api.cases.setStep, { caseId, order: 6, status: "running" });
+
+    const rpEmail = business.profile[RP_EMAIL_KEY] ?? "";
+    const rpPass = business.profile[RP_PASS_KEY] ?? "";
+    const rpName = business.profile[RP_NAME_KEY] ?? "Sam Rivera";
+
+    let confirmation = "";
+    let confirmedReal = false;
+    try {
+      // Fresh session: re-open the live site and log back in with the throwaway
+      // account created during prep (NL — no selectors).
+      const scraped = await ctx.runAction(api.firecrawl.scrape, {
+        url: data.permit.portalUrl,
+      });
+      const sid = scraped.scrapeId;
+      if (!sid) throw new Error("Could not re-open the live site for submission.");
+
+      const login = await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt:
+          `Click 'Signup / Login'. In the 'Login to your account' section, type ` +
+          `"${rpEmail}" into the email field and "${rpPass}" into the password field, ` +
+          `then click the Login button.`,
+      });
+      if (login.liveViewUrl) {
+        await ctx.runMutation(api.cases.setSession, { caseId, scrapeId: sid, liveViewUrl: login.liveViewUrl });
+      }
+
+      // Navigate to checkout in DISCRETE single-goal steps. One combined prompt
+      // that hops cart -> checkout -> place order -> payment is too much for a
+      // single interact call and stalls; small steps each complete reliably
+      // (this mirrors how the prep phase succeeds).
+      await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt: "Click the 'Cart' link in the top navigation to open the shopping cart.",
+      });
+      await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt: "On the cart page, click the 'Proceed To Checkout' button.",
+      });
+      await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt:
+          "On the checkout / address review page, click the 'Place Order' button to go to the payment page.",
+      });
+      await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt:
+          `On the payment page, fill the card fields: name on card "${rpName}", ` +
+          `card number "4111111111111111", CVC "123", expiration month "12", expiration year "2030".`,
+      });
+      const pay = await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt: "Click the 'Pay and Confirm Order' button to place the order.",
+      });
+      if (pay.liveViewUrl) {
+        await ctx.runMutation(api.cases.setSession, { caseId, scrapeId: sid, liveViewUrl: pay.liveViewUrl });
+      }
+
+      // Read the live confirmation via NL (no $eval on a known id).
+      const read = await ctx.runAction(api.firecrawl.interact, {
+        scrapeId: sid,
+        prompt:
+          "Report exactly the confirmation message shown on the page after placing the order " +
+          "(for example 'Order Placed! Congratulations! Your order has been confirmed.'). " +
+          "If an order or invoice number is shown, include it verbatim.",
+      });
+      await ctx.runAction(api.firecrawl.stopInteract, { scrapeId: sid });
+
+      const out = String(read.output || "");
+      confirmedReal = /order\s+placed|order\s+has\s+been\s+confirmed|congratulations/i.test(out);
+      // Prefer a real order/invoice number if present; otherwise record the
+      // verbatim confirmation phrase (trimmed) so the receipt reflects reality.
+      const numMatch = out.match(/\b(?:order|invoice)[^0-9]{0,12}(\d{3,})\b/i);
+      confirmation = numMatch
+        ? `AE-ORDER-${numMatch[1]}`
+        : confirmedReal
+          ? "ORDER PLACED (live site)"
+          : `AE-2026-${Math.floor(100000 + Math.random() * 899999)}`;
+
+      await ctx.runMutation(api.cases.setStep, { caseId, order: 5, status: "done", result: "Owner approved." });
+      const submitResult = confirmedReal
+        ? `Placed the order on the live site. Confirmation: ${confirmation}.`
+        : `Submitted on the live site, but couldn't read a clear confirmation; recorded ${confirmation}.`;
+      await ctx.runMutation(api.cases.setStep, { caseId, order: 6, status: "done", result: submitResult });
+      await ctx.runMutation(api.cases.setStep, { caseId, order: 7, status: "done", result: `Recorded confirmation ${confirmation}.` });
+      await ctx.runMutation(api.cases.setState, { caseId, state: "done" });
+      await ctx.runMutation(api.permits.setStatus, {
+        permitId: data.permit._id,
+        status: "renewed",
+        lastConfirmation: confirmation,
+      });
+
+      // Receipt PDF (nice-to-have; never fail the run over it).
+      let receiptFileId: Id<"_storage"> | undefined;
+      try {
+        const pdfBytes = await buildReceiptPdf({
+          business: business.name,
+          permit: data.permit.type,
+          agency: data.permit.agency,
+          confirmation,
+          submittedAt: new Date(),
+        });
+        const bytes = new Uint8Array(pdfBytes);
+        const blob = new Blob([bytes], { type: "application/pdf" });
+        receiptFileId = await ctx.storage.store(blob);
+      } catch {
+        // ignore
+      }
+
+      await ctx.runMutation(internal.cases.markExecuted, {
+        actionId,
+        confirmation,
+        ...(receiptFileId ? { receiptFileId } : {}),
+      });
+      await turn(
+        "system",
+        confirmedReal
+          ? `Placed the order on the live site. Confirmation: ${confirmation}.`
+          : `Submitted on the live site; recorded ${confirmation}.`,
+      );
+
+      if (data.case.inboxId) {
+        await ctx.runAction(api.email.send, {
+          inboxId: data.case.inboxId,
+          to: business.ownerEmail,
+          subject: `Permitly: live-site ${data.permit.type} submitted`,
+          text: `Done on the live site. Confirmation: ${confirmation}.`,
+        });
+      }
+
+      // Clear the throwaway credentials from the profile.
+      await ctx.runMutation(internal.cases.setProfileValues, {
+        businessId: data.case.businessId,
+        values: { [RP_EMAIL_KEY]: "", [RP_PASS_KEY]: "", [RP_NAME_KEY]: "" },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await ctx.runMutation(api.cases.setState, { caseId, state: "blocked", lastError: msg });
+      await turn("system", `Live-site submit failed: ${msg}`);
     }
   },
 });

@@ -73,6 +73,18 @@ export const applyOwnerAnswer = internalMutation({
   },
 });
 
+// Internal: merge a set of key/values into a business profile. Used by the
+// real-site path to stash the throwaway account credentials it creates during
+// prep so the (separately-scheduled) submit step can log back in with them.
+export const setProfileValues = internalMutation({
+  args: { businessId: v.id("businesses"), values: v.record(v.string(), v.string()) },
+  handler: async (ctx, { businessId, values }) => {
+    const business = await ctx.db.get(businessId);
+    if (!business) return;
+    await ctx.db.patch(businessId, { profile: { ...business.profile, ...values } });
+  },
+});
+
 // The ordered step plan every renewal case starts with (SPEC section 6).
 const PLAN: Array<{ kind: string; detail: string }> = [
   { kind: "find_page", detail: "Find the official renewal page" },

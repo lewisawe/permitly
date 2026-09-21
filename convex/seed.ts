@@ -81,6 +81,19 @@ export const demo = mutation({
         deadline: now - 2 * DAY, // overdue (red)
         status: "failed",
       },
+      {
+        // LIVE-SITE PROOF ROW: targets a real third-party site (built for
+        // automation practice, no CAPTCHA/MFA). Clicking Renew drives its real
+        // multi-page register -> checkout -> confirm flow via NL-only interact,
+        // through the same approval gate. Honest framing: same automation,
+        // pointed at a live external site — not a government portal.
+        type: "Live-Site Demo (automationexercise.com)",
+        agency: "automationexercise.com (live)",
+        portalUrl: "https://automationexercise.com/",
+        portalSlug: "live-demo",
+        deadline: now + 20 * DAY, // amber-ish; not overdue
+        status: "tracked",
+      },
     ];
 
     for (const p of permits) {
@@ -112,16 +125,25 @@ export const resetCases = mutation({
       const rows = await ctx.db.query(t).collect();
       for (const r of rows) await ctx.db.delete(r._id);
     }
-    // Reset permits that were mid-renewal back to tracked (leave "failed"/"renewed").
+    // Re-arm permits for the next visitor: reset anything that was mid-renewal
+    // OR already renewed back to "tracked" so the board has actionable rows
+    // again. Leave "failed" as-is (it's intentional visual variety on the demo
+    // board — the overdue Sign Permit). Also clear any leftover throwaway
+    // credentials the live-site path stashed on a business profile.
     const permits = await ctx.db.query("permits").collect();
     for (const p of permits) {
-      if (
-        p.status === "in_progress" ||
-        p.status === "awaiting_info" ||
-        p.status === "awaiting_approval" ||
-        p.status === "submitted"
-      ) {
-        await ctx.db.patch(p._id, { status: "tracked" });
+      if (p.status !== "failed" && p.status !== "tracked") {
+        await ctx.db.patch(p._id, { status: "tracked", lastConfirmation: undefined, bookingReference: undefined });
+      }
+    }
+    const businesses = await ctx.db.query("businesses").collect();
+    for (const b of businesses) {
+      if (b.profile._rpEmail || b.profile._rpPass || b.profile._rpName) {
+        const cleaned = { ...b.profile };
+        delete cleaned._rpEmail;
+        delete cleaned._rpPass;
+        delete cleaned._rpName;
+        await ctx.db.patch(b._id, { profile: cleaned });
       }
     }
     return { cleared: true };

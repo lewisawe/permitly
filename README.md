@@ -90,6 +90,33 @@ claim to work on any arbitrary government site — real portals add CAPTCHA, MFA
 and anti-bot measures — but the
 automation (sign-in, navigation, form-fill, submit) is genuine and adaptable.
 
+### Live-site proof (the automation, on a real third-party site)
+
+To show the automation is not tied to our own HTML, the board includes one
+**Live-Site Demo** row that targets a real external site,
+[automationexercise.com](https://automationexercise.com) — a site built for
+automation practice, so it has no CAPTCHA/MFA. Clicking **Renew** drives that
+site's genuine multi-page flow end to end using **only natural-language
+instructions** (Firecrawl `/interact`, no hardcoded CSS selectors): open →
+register a throwaway account with address details → add an item → reach the
+checkout review page → **approval gate** → place the order → read the live
+confirmation off the page (`"Congratulations! Your order has been confirmed!"`).
+
+Honest framing, in order of what to trust:
+
+1. **Primary demo — the controlled mock.** Reliable, runs every time, tells the
+   full permit story (sign-in → multi-page form → booking → approval → submit →
+   confirmation → receipt). This is what we lead with.
+2. **Proof beat — the live site.** The *same* runner and the *same* approval
+   gate, pointed at a real third-party site instead of our mock, to prove the
+   sign-in/navigate/fill/submit/read automation adapts to an unfamiliar live
+   page. It is **not** a government portal, and we don't claim it is; real gov
+   portals add CAPTCHA/MFA/anti-bot that a hackathon demo shouldn't fight live.
+   Card fields on the live payment page are dummy values on a sandbox site.
+
+Both paths share the human-in-the-loop gate: nothing is placed/submitted on the
+live site without an explicit approval, enforced server-side in `submit`.
+
 ## Tech stack
 
 Vite + React + TypeScript frontend, Convex backend, deployed to `convex.site`

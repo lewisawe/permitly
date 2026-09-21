@@ -9,9 +9,24 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 // Rate limit real, credit-costing renewal runs per business: a token bucket that
 // allows a small burst then refills slowly. Firecrawl /interact costs credits,
 // so this protects against accidental/abusive repeat triggers.
+//
+// Two buckets:
+//  - startRenewal: tight limit for a real (owned) business.
+//  - startRenewalDemo: generous limit for the SHARED demo business, because on
+//    VibeApps many anonymous judges hit the same demo business at once and a
+//    tight per-business cap would throttle honest concurrent traffic into an
+//    error. Still bounded so a runaway loop can't burn unlimited credits.
 const rateLimiter = new RateLimiter(components.rateLimiter, {
   startRenewal: { kind: "token bucket", rate: 3, period: MINUTE, capacity: 2 },
+  startRenewalDemo: { kind: "token bucket", rate: 30, period: MINUTE, capacity: 20 },
 });
+
+// Is this business the shared public demo? (Matches the seeded demo owner email.)
+// Judges on VibeApps all share this one, so it gets the generous rate bucket.
+function isDemoBusiness(ownerEmail: string): boolean {
+  const demoEmail = process.env.DEMO_OWNER_EMAIL ?? "owner@brickovenpizza.demo";
+  return ownerEmail === demoEmail;
+}
 
 // Board data: the caller's business (owner-scoped) with each permit's active
 // case. Falls back to the shared demo business so a first-time anonymous visitor
@@ -96,10 +111,14 @@ export const startRenewal = mutation({
 
     // Rate-limit renewal runs per business (real Firecrawl web actions cost
     // credits). Keyed by the permit's business; throws a ConvexError the client
-    // can surface if the limit is exceeded.
+    // can surface if the limit is exceeded. The shared demo business uses a
+    // generous bucket so concurrent judges on VibeApps aren't throttled.
     const permitForLimit = await ctx.db.get(permitId);
     if (permitForLimit) {
-      const { ok, retryAfter } = await rateLimiter.limit(ctx, "startRenewal", {
+      const biz = await ctx.db.get(permitForLimit.businessId);
+      const limitName =
+        biz && isDemoBusiness(biz.ownerEmail) ? "startRenewalDemo" : "startRenewal";
+      const { ok, retryAfter } = await rateLimiter.limit(ctx, limitName, {
         key: permitForLimit.businessId,
       });
       if (!ok) {

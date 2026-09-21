@@ -180,6 +180,26 @@ targets.
   "renewed", next deadline set.
 - 2:20 Recap the four sponsors doing real work; human approved every action.
 
+### Optional closing beat — "and it's not just our page" (live-site proof)
+
+Only after the mock flow above has landed cleanly. Keep it to ~25s.
+
+- 2:25 "Everything you just saw ran on our controlled portal so it never flakes
+  on CAPTCHA. But the automation isn't tied to our HTML." Click the **Live-Site
+  Demo (automationexercise.com)** row → Renew.
+- 2:35 Same live-view embed, a *real third-party site*: the agent registers,
+  fills a multi-page address form, reaches checkout — driven by natural language
+  only, no hardcoded selectors. Same approval gate appears.
+- 2:50 Approve → it places the order and reads the live confirmation
+  ("Congratulations! Your order has been confirmed!"). "Same runner, same gate,
+  real site. Not a government portal — those add MFA/anti-bot — but the
+  sign-in/navigate/fill/submit/read is genuine and adapts."
+
+Framing rule: the mock is the trustworthy primary; the live site is the proof
+the technique generalizes. **Record this beat in advance** as backup — the live
+site is a real network dependency and should never be the thing that fails on
+stage.
+
 ## 12. Submission checklist (from hackathonSetup.md)
 
 - [ ] Public repo, hackathon.md at root (Event: Convex All Gas Hackathon).

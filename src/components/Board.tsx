@@ -14,6 +14,8 @@ import {
   BellRing,
   BadgeCheck,
   X,
+  RotateCcw,
+  Globe,
 } from "lucide-react";
 
 function StatusPill({ status }: { status: PermitStatus }) {
@@ -50,7 +52,9 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
   const board = useQuery(api.permits.board, {});
   const seed = useMutation(api.seed.demo);
   const startRenewal = useMutation(api.permits.startRenewal);
+  const resetDemo = useMutation(api.seed.resetCases);
   const [toast, setToast] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   const loading = board === undefined;
   const permits = board?.permits ?? [];
@@ -77,6 +81,19 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
           : "Could not start the renewal. Please try again.";
       setToast(msg);
       window.setTimeout(() => setToast(null), 5000);
+    }
+  }
+
+  async function handleReset() {
+    setResetting(true);
+    try {
+      await resetDemo({});
+      setToast("Demo reset — the board is fresh for the next visitor.");
+    } catch {
+      setToast("Could not reset the demo. Please try again.");
+    } finally {
+      setResetting(false);
+      window.setTimeout(() => setToast(null), 4000);
     }
   }
 
@@ -142,12 +159,23 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
         </div>
       )}
       <div className="board-head">
-        <h1 className="board-title">Compliance board</h1>
-        <p className="board-subtitle">
-          {business?.name
-            ? `${business.name} — every permit, deadline and renewal in one place.`
-            : "Every permit, deadline and renewal in one place."}
-        </p>
+        <div>
+          <h1 className="board-title">Compliance board</h1>
+          <p className="board-subtitle">
+            {business?.name
+              ? `${business.name} — every permit, deadline and renewal in one place.`
+              : "Every permit, deadline and renewal in one place."}
+          </p>
+        </div>
+        <button
+          className="btn btn-ghost btn-sm reset-demo-btn"
+          onClick={() => void handleReset()}
+          disabled={resetting}
+          title="Clear all runs and re-arm the demo board for the next visitor"
+        >
+          <RotateCcw size={15} aria-hidden="true" />
+          {resetting ? "Resetting…" : "Reset demo"}
+        </button>
       </div>
 
       <section className="kpis" aria-label="Summary">
@@ -178,9 +206,18 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
               const active = p.activeCase;
               const needsYou =
                 p.status === "awaiting_info" || p.status === "awaiting_approval";
+              const isLive = p.portalSlug === "live-demo";
               return (
                 <tr key={p._id} className={needsYou ? "row-needs-you" : undefined}>
-                  <td className="cell-type">{p.type}</td>
+                  <td className="cell-type">
+                    {p.type}
+                    {isLive && (
+                      <span className="live-badge" title="Runs against a real external website (automationexercise.com) using natural-language browser automation. Takes about 2 minutes and performs a real submission.">
+                        <Globe size={12} aria-hidden="true" />
+                        Live external site · ~2 min
+                      </span>
+                    )}
+                  </td>
                   <td className="cell-muted">{p.agency}</td>
                   <td className={`cell-deadline urgency-${d.urgency}`}>{d.label}</td>
                   <td>
@@ -198,8 +235,13 @@ export function Board({ onOpenCase }: { onOpenCase: (id: Id<"cases">) => void })
                       <button
                         className="btn btn-outline btn-sm"
                         onClick={() => void handleRenew(p._id)}
+                        title={
+                          isLive
+                            ? "Drives a real external site end to end (~2 min). The fast mock rows above tell the full permit story instantly."
+                            : undefined
+                        }
                       >
-                        Renew
+                        {isLive ? "Run live demo" : "Renew"}
                       </button>
                     )}
                   </td>
