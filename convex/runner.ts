@@ -663,13 +663,17 @@ export const realProofPrep = internalAction({
 
     const addr = business.profile.address || "142 Main St, Springfield";
 
+    // Track the live browser session id OUTSIDE the try so the catch can always
+    // destroy it. Firecrawl caps concurrent sessions (2); a failed run that
+    // leaks its session makes the cap worse for the next run (429).
+    let sid = "";
     try {
       // Step 0: open the live site + sign-in/registration page.
       await ctx.runMutation(api.cases.setState, { caseId, state: "finding_page" });
       await step(0, "running");
       const scraped = await ctx.runAction(api.firecrawl.scrape, { url: portalUrl });
       if (!scraped.scrapeId) throw new Error("Could not open the live site.");
-      const sid = scraped.scrapeId;
+      sid = scraped.scrapeId;
       await ctx.runMutation(api.cases.setSession, { caseId, scrapeId: sid });
 
       // Go to the signup/login page (NL — no selectors).
@@ -778,6 +782,9 @@ export const realProofPrep = internalAction({
       // Free the session while we wait for approval (sessions are ~10 min).
       await ctx.runAction(api.firecrawl.stopInteract, { scrapeId: sid });
     } catch (err) {
+      // Always destroy the live session so a failed run doesn't leak a
+      // concurrent-session slot (Firecrawl 429 on the next run).
+      if (sid) await ctx.runAction(api.firecrawl.stopInteract, { scrapeId: sid });
       const msg = err instanceof Error ? err.message : String(err);
       await ctx.runMutation(api.cases.setState, { caseId, state: "blocked", lastError: msg });
       await turn("system", `Blocked (live site): ${msg}`);
@@ -807,13 +814,25 @@ export const realProofSubmit = internalAction({
 
     let confirmation = "";
     let confirmedReal = false;
+    let sid = "";
     try {
       // Fresh session: re-open the live site and log back in with the throwaway
-      // account created during prep (NL — no selectors).
-      const scraped = await ctx.runAction(api.firecrawl.scrape, {
+      // account created during prep (NL — no selectors). Firecrawl caps
+      // concurrent sessions at 2, so retry once on a 429 after a short wait in
+      // case a prior session is still winding down.
+      let scraped = await ctx.runAction(api.firecrawl.scrape, {
         url: data.permit.portalUrl,
+      }).catch((e: unknown) => {
+        const m = e instanceof Error ? e.message : String(e);
+        if (/429|concurrent/i.test(m)) return null;
+        throw e;
       });
-      const sid = scraped.scrapeId;
+      if (!scraped?.scrapeId) {
+        await turn("system", "Live site busy (session limit) — retrying in a moment…");
+        await new Promise((r) => setTimeout(r, 8000));
+        scraped = await ctx.runAction(api.firecrawl.scrape, { url: data.permit.portalUrl });
+      }
+      sid = scraped?.scrapeId ?? "";
       if (!sid) throw new Error("Could not re-open the live site for submission.");
 
       const login = await ctx.runAction(api.firecrawl.interact, {
@@ -936,6 +955,9 @@ export const realProofSubmit = internalAction({
         values: { [RP_EMAIL_KEY]: "", [RP_PASS_KEY]: "", [RP_NAME_KEY]: "" },
       });
     } catch (err) {
+      // Always destroy the live session so a failed submit doesn't leak a
+      // concurrent-session slot (the cause of escalating Firecrawl 429s).
+      if (sid) await ctx.runAction(api.firecrawl.stopInteract, { scrapeId: sid });
       const msg = err instanceof Error ? err.message : String(err);
       await ctx.runMutation(api.cases.setState, { caseId, state: "blocked", lastError: msg });
       await turn("system", `Live-site submit failed: ${msg}`);

@@ -55,14 +55,19 @@ export const interact = action({
   },
 });
 
-// Stop an interact session.
+// Stop an interact session. Best-effort: cleanup must never throw (a failed
+// stop would otherwise mask the real error and still leak the session slot).
 export const stopInteract = action({
   args: { scrapeId: v.string() },
   handler: async (_ctx, { scrapeId }) => {
-    await fcFetch(`/scrape/${encodeURIComponent(scrapeId)}/interact`, {
-      method: "DELETE",
-    });
-    return { stopped: true };
+    try {
+      await fcFetch(`/scrape/${encodeURIComponent(scrapeId)}/interact`, {
+        method: "DELETE",
+      });
+      return { stopped: true };
+    } catch {
+      return { stopped: false };
+    }
   },
 });
 
