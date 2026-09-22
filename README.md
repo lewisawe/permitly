@@ -185,8 +185,4 @@ npx convex run --prod seed:resetCases # clear cases only, keep permits
 ## Reference docs
 
 - [`SPEC.md`](./SPEC.md) — architecture, data model, state machine, demo script
-- [`IMPROVEMENTS.md`](./IMPROVEMENTS.md) — pre-submission hardening audit + fixes
-- [`DEMO_ENHANCEMENTS.md`](./DEMO_ENHANCEMENTS.md) — visual + multi-page portal plan
-- [`CONVEX_DEPTH.md`](./CONVEX_DEPTH.md) — Convex depth additions (components, file storage, auth)
-- [`POLISH.md`](./POLISH.md) — product-polish pass (landing, states, chrome)
-- [`DESIGN.md`](./DESIGN.md) — how the design system maps into the app
+- [`hackathon.md`](./hackathon.md) — evidence-based build log

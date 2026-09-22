@@ -34,3 +34,15 @@ dist-ssr
 # Agent tooling (Convex skills, not product code)
 .agents/
 .claude/
+
+
+# Internal build/process notes (kept local, not part of the public submission)
+CONVEX_DEPTH.md
+DEMO_ENHANCEMENTS.md
+IMPROVEMENTS.md
+POLISH.md
+PROGRESS.md
+progress.md
+DESIGN.md
+
+DEMO_SCRIPT.md

@@ -5,7 +5,7 @@
 
 > **Updates since this spec (2026-09-16).** This is the original pre-build plan;
 > the shipped app follows it closely with a few deliberate changes, all recorded
-> in `hackathon.md`, `IMPROVEMENTS.md`, and `DEMO_ENHANCEMENTS.md`:
+> in `hackathon.md`:
 > - **OpenAI slot → AWS Bedrock Nova** (`amazon.nova-lite-v1:0`, SigV4 Converse).
 > - **AgentMail + Firecrawl called via direct REST**, not their Convex components
 >   (the AgentMail component's functions didn't resolve at runtime).
